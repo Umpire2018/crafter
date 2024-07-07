@@ -1,12 +1,8 @@
-import argparse
 import ast
-import json
 import os
 import subprocess
 import uuid
 
-import pandas as pd
-from tqdm import tqdm
 
 repo_to_top_folder = {
     "django/django": "django",
