@@ -17,25 +17,32 @@ def main(theme):
 
 @main.command()
 @click.option(
-    "--targer-repo-url",
+    "--target-repo-url",
     "target_repo_url",
     required=False,
     type=str,
     help="The URL of the repository to clone. Example: 'https://github.com/octocat/Hello-World.git'.",
 )
 @click.option(
-    "--targer-repo-name",
+    "--target-repo-name",
     "target_repo_name",
     required=False,
     type=str,
     help="The name of the repository to clone. Example: 'octocat/Hello-World'.",
 )
 @click.option(
-    "--targer-repo-path",
+    "--target-repo-path",
     "target_repo_path",
     required=False,
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     help="The local path of the repository. Example: '/path/to/local/repo'.",
+)
+@click.option(
+    "--target-repo-commit-hash",
+    "target_repo_commit_hash",
+    required=False,
+    type=str,
+    help="The commit hash of the repository to clone. Example: 'a1b2c3d4e5f6'.",
 )
 @click.option(
     "--workspace-path",
@@ -45,7 +52,13 @@ def main(theme):
     type=click.Path(file_okay=False, path_type=Path),
     help="The path to the workspace where the repository will be cloned. Example: '/path/to/workspace'.",
 )
-def run(target_repo_url, target_repo_name, target_repo_path, workspace_path):
+def run(
+    target_repo_url,
+    target_repo_name,
+    target_repo_path,
+    workspace_path,
+    target_repo_commit_hash,
+):
     """
     Clones a repository to the specified workspace path.
 
@@ -63,6 +76,7 @@ def run(target_repo_url, target_repo_name, target_repo_path, workspace_path):
         target_repo_name=target_repo_name,
         target_repo_path=target_repo_path,
         workspace_path=workspace_path,
+        target_repo_commit_hash=target_repo_commit_hash,
     )
 
 

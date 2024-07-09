@@ -187,3 +187,6 @@ def create_structure(directory_path):
                 curr_struct[file_name] = {}
 
     return structure
+
+if __name__ == "__main__":
+    print(create_structure(directory_path="/home/test/arno/Agentless/agent"))

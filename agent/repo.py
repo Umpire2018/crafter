@@ -12,6 +12,7 @@ def clone_repo(
     target_repo_url: Optional[GitUrl] = None,
     target_repo_name: Optional[RepoName] = None,
     target_repo_path: Optional[DirectoryPath] = None,
+    target_repo_commit_hash: Optional[str] = None,
 ):
     try:
         config = RepoCloneConfig(
@@ -32,14 +33,23 @@ def clone_repo(
             console.print(
                 f"Using local repository '{repo_info['path']}' .", style="info"
             )
+            target_repo = Repo(repo_info["path"])
+
         else:
             repo_url = repo_info["url"]
             console.print(
                 f"Cloning repository {repo_url} to {repo_info['workspace_path']}...",
                 style="info",
             )
-            Repo.clone_from(repo_url, repo_info["workspace_path"])
+            target_repo = Repo.clone_from(repo_url, repo_info["workspace_path"])
             console.print("Repository cloned successfully.", style="info")
+
+        if target_repo_commit_hash:
+            console.print(
+                f"Checking out commit hash '{target_repo_commit_hash}'...", style="info"
+            )
+            target_repo.git.checkout(target_repo_commit_hash)
+            return target_repo
 
     except Exception as e:
         console.print(f"An error occurred: {e}", style="error")
