@@ -79,6 +79,7 @@ def run(
         target_repo_commit_hash=target_repo_commit_hash,
     )
 
+# TODO add configure to store config information at ~/.agent/config by default.
 
 if __name__ == "__main__":
     main()

@@ -183,3 +183,8 @@ results/
 
 # Jupyter Notebooks
 *.ipynb
+
+# Agent
+RepoAgent
+# Ignore dynaconf secret files
+.secrets.*

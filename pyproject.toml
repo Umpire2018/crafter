@@ -1,32 +1,28 @@
-[tool.poetry]
-name = "agentless"
+[project]
+name = "Agent"
 version = "0.1.0"
-description = "An agentless approach to automatically solve software development problems"
-authors = ["Your Name <you@example.com>"]
-license = "MIT"
+description = "Default template for PDM package"
+authors = [
+    {name = "Your Name", email = "you@example.com"},
+]
+dependencies = [
+    "litellm>=1.41.21",
+    "GitPython>=3.1.43",
+    "requests>=2.32.3",
+    "rich>=13.7.1",
+]
+requires-python = ">=3.10"
 readme = "README.md"
+license = {text = "MIT"}
 
-[tool.poetry.dependencies]
-python = "^3.11"
-litellm = "^1.41.7"
-gitpython = "^3.1.43"
-rich = "^13.7.1"
-requests = "^2.32.3"
 
-[tool.poetry.group.evaluation]
-optional = true
+[tool.pdm]
+distribution = false
 
-[tool.poetry.group.evaluation.dependencies]
-datasets = "^2.20.0"
-swebench = "^2.0.4"
-
-[tool.poetry.group.dev]
-optional = true
-
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.5.1"
-pytest = "^8.2.2"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.pdm.dev-dependencies]
+lint = [
+    "ruff>=0.5.1",
+]
+test = [
+    "pytest>=8.2.2",
+]

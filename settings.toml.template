@@ -1,0 +1,36 @@
+[default]
+
+#################################### LLM #####################################
+# Configuration for LLM models (group name starts with 'default.llm')
+##############################################################################
+
+[default.llm]
+# API base URL
+#base_url = ""
+
+# API version
+#api_version = ""
+
+# Maximum number of output tokens
+#max_output_tokens = 0
+
+# Model to use
+model = "gpt-4o"
+
+# Number of retries to attempt
+#num_retries = 5
+
+# Retry maximum wait time
+#retry_max_wait = 60
+
+# Retry minimum wait time
+#retry_min_wait = 3
+
+# Temperature for the API
+#temperature = 0.0
+
+# Timeout for the API
+#timeout = 0
+
+# Top p for the API
+#top_p = 0.5
