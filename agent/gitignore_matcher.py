@@ -1,6 +1,5 @@
 import os
 import fnmatch
-import time
 import requests
 from collections import defaultdict
 
@@ -200,8 +199,6 @@ class GitIgnoreMatcher:
                 else:
                     print(f"Path ignored: {rel_path}")
 
-        end_time = time.time()
-        print(f"Checked directory in {end_time - start_time:.4f} seconds")
         return not_ignored
 
     def scan_directory(self, dir_path, not_ignored, base_directory):
@@ -229,12 +226,19 @@ class GitIgnoreMatcher:
 
 # Example usage
 if __name__ == "__main__":
-    gitignore_path = None  # or provide a specific path
+    gitignore_path = ".gitignore"  # or provide a specific path
     matcher = GitIgnoreMatcher(gitignore_path)
-    directory_to_check = '/path/to/check'  # replace with the actual directory path
-    language = 'python'  # or the target language
+    directory_to_check = (
+        "./directory_to_check"  # replace with the actual directory path
+    )
+    language = "python"  # or the target language
 
+    import time
+
+    start_time = time.time()
     not_ignored_files = matcher.check_directory(directory_to_check, language)
+    end_time = time.time()
+    print(f"Checked directory in {end_time - start_time:.4f} seconds")
 
     print("Files and directories not ignored:")
     for file in not_ignored_files:

@@ -56,7 +56,7 @@ def run(
     target_repo_url,
     target_repo_name,
     target_repo_path,
-    workspace_path,
+    workspace_path: Path,
     target_repo_commit_hash,
 ):
     """
