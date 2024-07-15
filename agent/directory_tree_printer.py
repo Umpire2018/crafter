@@ -43,21 +43,26 @@ class DirectoryTreePrinter:
             current = current.setdefault(part, {})
         current[parts[-1]] = None
 
-    def print_tree_helper(self, tree, prefix=""):
+    def tree_to_string_helper(self, tree, prefix=""):
         """
-        Recursively print the directory tree.
+        Recursively generate the directory tree as a string.
 
         Args:
             tree (dict): The directory tree.
             prefix (str): The prefix for each line of the tree.
+
+        Returns:
+            str: The string representation of the directory tree.
         """
+        lines = []
         items = sorted(tree.items())
         for i, (name, subtree) in enumerate(items):
             is_last = i == len(items) - 1
-            print(f"{prefix}{'└── ' if is_last else '├── '}{name}")
+            lines.append(f"{prefix}{'└── ' if is_last else '├── '}{name}")
             if subtree is not None:
                 extension = "    " if is_last else "│   "
-                self.print_tree_helper(subtree, prefix + extension)
+                lines.append(self.tree_to_string_helper(subtree, prefix + extension))
+        return "\n".join(lines)
 
     def filter_and_convert_files(self, file_list):
         """
@@ -79,20 +84,24 @@ class DirectoryTreePrinter:
                 filtered_files.append(parts)
         return filtered_files
 
-    def print_tree(self, file_list):
+    def generate_tree_string(self, file_list):
         """
-        Print the directory tree for the given file list.
+        Generate the directory tree as a string for the given file list.
 
         Args:
             file_list (list): The list of files.
+
+        Returns:
+            str: The string representation of the directory tree.
         """
         filtered_files = self.filter_and_convert_files(file_list)
         file_tree = {}
         for parts in filtered_files:
             self.add_to_tree(file_tree, parts)
 
-        print(f"{os.path.basename(self.directory_to_check)}")
-        self.print_tree_helper(file_tree, "")
+        tree_string = f"{os.path.basename(self.directory_to_check)}\n"
+        tree_string += self.tree_to_string_helper(file_tree, "")
+        return tree_string
 
 
 if __name__ == "__main__":

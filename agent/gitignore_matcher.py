@@ -187,7 +187,6 @@ class GitIgnoreMatcher:
 
         not_ignored = []
         print(f"Checking directory: {directory}")
-        start_time = time.time()
 
         for entry in os.scandir(directory):
             if entry.is_dir(follow_symlinks=False):
