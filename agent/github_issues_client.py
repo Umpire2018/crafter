@@ -1,6 +1,7 @@
 import httpx
 from typing import Dict, Any, List
 
+
 class GitHubIssuesClient:
     """
     An asynchronous client for interacting with the GitHub API for issues.
@@ -93,14 +94,14 @@ class GitHubIssuesClient:
                 raise excp
             return response
 
-    async def get_issue(
+    async def get_issue_description(
         self,
         owner: str,
         repo: str,
         issue_number: int,
     ) -> Dict[str, str]:
         """
-        Get a single issue from a repository.
+        Get a single issue description from a repository.
 
         Args:
             - owner (str): Owner of the repository.
@@ -157,12 +158,14 @@ class GitHubIssuesClient:
         comments_data = response.json()
         comments = []
         for comment in comments_data:
-            comments.append({
-                "user": comment.get("user", {}).get("login"),
-                "body": comment.get("body"),
-            })
+            comments.append(
+                {
+                    "user": comment.get("user", {}).get("login"),
+                    "body": comment.get("body"),
+                }
+            )
         return comments
-    
+
     async def get_issue_and_comments_markdown(
         self,
         owner: str,
@@ -185,7 +188,7 @@ class GitHubIssuesClient:
         """
         # Get issue details
         issue = await self.get_issue(owner, repo, issue_number)
-        
+
         # Get issue comments
         comments = await self.get_issue_comments(owner, repo, issue_number)
 
@@ -211,7 +214,9 @@ if __name__ == "__main__":
         """Test the GitHubIssuesClient."""
         client = GitHubIssuesClient()
 
-        markdown = await client.get_issue_and_comments_markdown(owner="OpenBMB", repo="RepoAgent", issue_number=59)
+        markdown = await client.get_issue_and_comments_markdown(
+            owner="OpenBMB", repo="RepoAgent", issue_number=59
+        )
 
         print(markdown)
 
