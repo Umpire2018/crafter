@@ -42,7 +42,7 @@ class LLMInitializer:
             base_url=self.base_url,
             context_window=self.context_window,
             request_timeout=self.request_timeout,
-            json_mode=True
+            json_mode=True,
         )
 
     @staticmethod

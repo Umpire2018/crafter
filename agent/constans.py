@@ -1,3 +1,6 @@
+# FIXME 
+# 1. 可能出现文件不在目标仓库
+# 2. 文件路径为以目标仓库开头，如 ./repo_agent/runners/__init__.py 而不是 ./RepoAgent/repo_agent/__init__.py
 obtain_relevant_files_prompt = """
 Please look through the following GitHub problem description and Repository structure and provide a list of files that one would need to edit to fix the problem.
 
@@ -25,7 +28,6 @@ obtain_relevant_code_prompt = """
 Please look through the following GitHub problem description and file and provide a set of locations that one would need to edit to fix the problem.
 
 ### GitHub Problem Description ###
-{problem_statement}
 
 ###
 
@@ -193,7 +195,6 @@ Return just the locations.
 """
 
 test_problem_statement = """
-
 Please thoroughly review the following GitHub issue description and the file structure of the associated GitHub repository names RepoAgent. From the file structure, select five files that you believe can assist in resolving the issue. Return the paths of these files, starting with the target repository's root, in the following JSON format:
 
 {"possible_helping_files":["./RepoAgent/file1.py"]}
