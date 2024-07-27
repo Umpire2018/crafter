@@ -18,7 +18,7 @@ class LLMInitializer:
         self.base_url = None
         self.model = None
         self.context_window = None
-        self.request_timeout = 300
+        self.request_timeout = 600
 
     async def initialize(self):
         fallback = await is_url_reachable(settings.llm.base_url)
