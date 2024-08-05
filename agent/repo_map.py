@@ -23,7 +23,7 @@ class RepoMap:
         self.file_dict = file_dict
         self.repo_map = defaultdict(
             lambda: defaultdict(
-                lambda: {"methods": [], "attributes": [], "class_decorators": []}
+                lambda: {"methods": [], "attributes": [], "class_decorators": [], "references": []}
             )
         )
         self.parsers = {
@@ -61,9 +61,13 @@ class RepoMap:
             file_path (str): The path of the file.
         """
         cursor = node.walk()
+        import_statements = {}
 
         while True:
-            if cursor.node.type == "class_definition":
+
+            if cursor.node.type in ["import_statement", "import_from_statement"]:
+                self.process_import_statement(cursor.node, source_code, import_statements)
+            elif cursor.node.type == "class_definition":
                 class_name = self.get_node_text(
                     cursor.node.child_by_field_name("name"), source_code
                 )
@@ -95,13 +99,65 @@ class RepoMap:
                 self.repo_map[file_path]["<top-level>"]["methods"].append(
                     (function_name, parameters, return_type, is_async, decorators)
                 )
+            elif cursor.node.type == "call":
+                call_name = self.get_node_text(cursor.node.child_by_field_name("function"), source_code)
+                if self.is_imported(call_name, import_statements):  
+                    if self.current_class:
+                        self.repo_map[file_path][self.current_class]["references"].append(call_name)
+                    else:
+                        self.repo_map[file_path]["<top-level>"]["references"].append(call_name)
 
             if cursor.goto_first_child():
                 continue
             while not cursor.goto_next_sibling():
                 if not cursor.goto_parent():
                     return
+                
+    def process_import_statement(self, node, source_code, import_statements):
+        """
+        Process an import statement and update the import_statements dictionary.
 
+        Args:
+            node (Node): The import statement node.
+            source_code (str): The source code of the file.
+            import_statements (dict): Dictionary to store import information.
+        """
+        if node.type == "import_statement":
+            for child in node.children:
+                if child.type == "dotted_name":
+                    module_name = self.get_node_text(child, source_code)
+                    import_statements[module_name] = None
+                elif child.type == "aliased_import":
+                    module_name = self.get_node_text(child.child_by_field_name("name"), source_code)
+                    alias_name = self.get_node_text(child.child_by_field_name("alias"), source_code)
+                    import_statements[alias_name] = module_name
+        elif node.type == "import_from_statement":
+            module_name = self.get_node_text(node.child_by_field_name("module"), source_code)
+            imported_names = []
+            for child in node.children:
+                if child.type == "dotted_name" and child != node.child_by_field_name("module"):
+                    imported_name = self.get_node_text(child, source_code)
+                    imported_names.append(imported_name)
+                    import_statements[imported_name] = module_name
+
+    def is_imported(self, call_name, import_statements):
+        """
+        Check if a call name is part of the imported statements.
+
+        Args:
+            call_name (str): The name of the function being called.
+            import_statements (dict): Dictionary of import statements.
+
+        Returns:
+            bool: True if the call name is part of the imported statements, False otherwise.
+        """
+        for alias, module in import_statements.items():
+            if call_name == alias or call_name.startswith(f"{alias}."):
+                return True
+            if module and (call_name == module or call_name.startswith(f"{module}.")):
+                return True
+        return False
+    
     def process_class_body(self, class_node: Node, source_code: str, file_path: str):
         """
         Process the body of a class to extract class attributes.
@@ -316,6 +372,11 @@ class RepoMap:
                                 print(
                                     f"        {decorator_str}{async_str}def {method}({param_str}){return_str}"
                                 )
+                        # Print references
+                        if class_info["references"]:
+                            print("        # References:")
+                            for ref in class_info["references"]:
+                                print(f"        #   {ref}")
                     if "<top-level>" in (filter_dict or {}):
                         for (
                             method,
@@ -345,15 +406,20 @@ class RepoMap:
                                 print(
                                     f"    {decorator_str}{async_str}def {method}({param_str}){return_str}"
                                 )
+                        # Print top-level references
+                        if self.repo_map[file_path]["<top-level>"]["references"]:
+                            print("    # References:")
+                            for ref in self.repo_map[file_path]["<top-level>"]["references"]:
+                                print(f"    #   {ref}")
 
 
 if __name__ == "__main__":
     # Example file list with classes and methods to filter
     file_dict = {
-        "./RepoAgent/repo_agent/doc_meta_info.py": {
-            "DocItem": None,
-        },
-        "agent/schemas.py": None,
+        # "./RepoAgent/repo_agent/doc_meta_info.py": {
+        #     "DocItem": None,
+        # },
+        "agent/test.py": None,
     }
 
     repo_map = RepoMap(file_dict)

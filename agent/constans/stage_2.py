@@ -66,13 +66,72 @@ Details to Include:
 ### Relevant files and their structure
 
 ./RepoAgent/repo_agent/doc_meta_info.py:
+  Imports:
+    import json
+    import os
+    import threading
+    from dataclasses import dataclass, field
+    from enum import Enum, auto, unique
+    from pathlib import Path
+    from typing import Any, Callable, Dict, List, Optional
+    import jedi
+    from colorama import Fore, Style
+    from prettytable import PrettyTable
+    from tqdm import tqdm
+    from repo_agent.file_handler import FileHandler
+    from repo_agent.log import logger
+    from repo_agent.multi_task_dispatch import Task, TaskManager
+    from repo_agent.settings import setting
+    from repo_agent.utils.meta_info_utils import latest_verison_substring
+  @unique
+  class EdgeType:
+    reference_edge = auto()
+    subfile_edge = auto()
+    file_item_edge = auto()
+  @unique
   class DocItemType:
+    _repo = auto()
+    _dir = auto()
+    _file = auto()
+    _class = auto()
+    _class_function = auto()
+    _function = auto()
+    _sub_function = auto()
+    _global_var = auto()
     def to_str(self)
     def print_self(self)
     def get_edge_type(self, from_item_type: DocItemType, to_item_type: DocItemType)
+  @unique
   class DocItemStatus:
+    doc_up_to_date = auto()
+    doc_has_not_been_generated = auto()
+    code_changed = auto()
+    add_new_referencer = auto()
+    referencer_not_exist = auto()
+  <top-level>:
     def need_to_generate(doc_item: DocItem) -> bool
+  @dataclass
   class DocItem:
+    item_type = DocItemType._class_function
+    item_status = DocItemStatus.doc_has_not_been_generated
+    obj_name = ""
+    code_start_line = -1
+    code_end_line = -1
+    md_content = field(default_factory=list)
+    content = field(default_factory=dict)
+    children = field(default_factory=dict)
+    father = None
+    depth = 0
+    tree_path = field(default_factory=list)
+    max_reference_ansce = None
+    reference_who = field(default_factory=list)
+    who_reference_me = field(default_factory=list)
+    special_reference_type = field(default_factory=list)
+    reference_who_name_list = field(default_factory=list)
+    who_reference_me_name_list = field(default_factory=list)
+    has_task = False
+    multithread_task_id = -1
+    @staticmethod
     def has_ans_relation(now_a: DocItem, now_b: DocItem)
     def get_travel_list(self)
     def check_depth(self)
@@ -80,44 +139,37 @@ Details to Include:
     def get_file_name(self)
     def get_full_name(self)
     def find(self, recursive_file_path: list) -> Optional[DocItem]
+    @staticmethod
     def check_has_task(now_item: DocItem)
     def print_recursive(self)
-    def print_indent()
-    def find_all_referencer(repo_path, variable_name, file_path, line_number, column_number)
-  class MetaInfo:
-    def init_meta_info(file_path_reflections, jump_files) -> MetaInfo
-    def from_checkpoint_path(checkpoint_dir_path: str | Path) -> MetaInfo
-    def checkpoint(self, target_dir_path: str | Path)
-    def print_task_list(self, task_dict: Dict[Task])
-    def get_all_files(self) -> List[DocItem]
-    def walk_tree(now_node)
-    def find_obj_with_lineno(self, file_node: DocItem, start_line_num) -> DocItem
-    def parse_reference(self)
-    def walk_file(now_obj: DocItem)
-    def get_task_manager(self, now_node: DocItem, task_available_func) -> TaskManager
-    def in_white_list(item: DocItem)
-    def get_topology(self, task_available_func) -> TaskManager
-    def _map(self, deal_func: Callable)
-    def travel(now_item: DocItem)
-    def load_doc_from_older_meta(self, older_meta: MetaInfo)
-    def find_item(now_item: DocItem) -> Optional[DocItem]
-    def travel(now_older_item: DocItem)
-    def travel2(now_older_item: DocItem)
-    def from_project_hierarchy_path(repo_path: str) -> MetaInfo
-    def to_hierarchy_json(self)
-    def walk_file(now_obj: DocItem)
-    def from_project_hierarchy_json(project_hierarchy_json) -> MetaInfo
-    def code_contain(item, other_item) -> bool
-    def change_items(now_item: DocItem)
+
 ./RepoAgent/repo_agent/runner.py:
+  Imports:
+    import json
+    import os
+    import shutil
+    import subprocess
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    from functools import partial
+    from colorama import Fore, Style
+    from tqdm import tqdm
+    from repo_agent.change_detector import ChangeDetector
+    from repo_agent.chat_engine import ChatEngine
+    from repo_agent.doc_meta_info import DocItem, DocItemStatus, MetaInfo, need_to_generate
+    from repo_agent.file_handler import FileHandler
+    from repo_agent.log import logger
+    from repo_agent.multi_task_dispatch import worker
+    from repo_agent.project_manager import ProjectManager
+    from repo_agent.settings import setting
+    from repo_agent.utils.meta_info_utils import delete_fake_files, make_fake_files
   class Runner:
     def __init__(self)
     def get_all_pys(self, directory)
     def generate_doc_for_a_single_item(self, doc_item: DocItem)
     def first_generate(self)
     def markdown_refresh(self)
-    def recursive_check(doc_item: DocItem) -> bool
-    def to_markdown(item: DocItem, now_level: int) -> str
     def git_commit(self, commit_message)
     def run(self)
     def add_new_item(self, file_handler, json_data)
@@ -125,74 +177,108 @@ Details to Include:
     def update_existing_item(self, file_dict, file_handler, changes_in_pyfile)
     def update_object(self, file_dict, file_handler, obj_name, obj_referencer_list)
     def get_new_objects(self, file_handler)
+
 ./RepoAgent/repo_agent/utils/meta_info_utils.py:
-  class Runner:
+  Imports:
+    import itertools
+    import os
+    import git
+    from colorama import Fore, Style
+    from repo_agent.log import logger
+    from repo_agent.settings import setting
+  <top-level>:
     def make_fake_files()
     def delete_fake_files()
-    def gci(filepath)
+
 ./RepoAgent/repo_agent/exceptions.py:
+  Imports:
+    from openai import APIConnectionError
+    from repo_agent.log import logger
   class ErrorHandler:
+    @staticmethod
     def handle_exception(e)
   class OpenAIError:
     def __init__(self, message)
+
 ./RepoAgent/repo_agent/settings.py:
+  Imports:
+    from enum import StrEnum
+    from iso639 import Language, LanguageNotFoundError
+    from pydantic import DirectoryPath, Field, HttpUrl, PositiveFloat, PositiveInt, SecretStr, field_serializer, field_validator
+    from pydantic_settings import BaseSettings
+    from repo_agent.config_manager import read_config, write_config
+  class LogLevel:
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
   class ProjectSettings:
+    target_repo = ""
+    hierarchy_name = ".project_doc_record"
+    markdown_docs_name = "markdown_docs"
+    ignore_list = []
+    language = "Chinese"
+    max_thread_count = 4
+    max_document_tokens = 1024
+    log_level = LogLevel.INFO
+    @field_serializer("ignore_list")
     def serialize_ignore_list(self)
+    @field_validator("language")
+    @classmethod
     def validate_language_code(cls, v: str) -> str
+    @field_validator("log_level", mode="before")
+    @classmethod
     def set_log_level(cls, v: str) -> LogLevel
+    @field_serializer("target_repo")
     def serialize_target_repo(self, target_repo: DirectoryPath)
-  class ChatCompletionSettings:
-    def serialize_base_url(self, base_url: HttpUrl)
 
 """
 
 test_review_issue_with_file_structure_output = """
-{
+{ 
   "files": [
         {
-            "file_path": "./RepoAgent/repo_agent/doc_meta_info.py",
-            "classes": [
-                {
-                    "class_name": "DocItemStatus",
-                    "methods": [
-                        {"method_name": "need_to_generate"}
-                    ]
-                },
-                {
-                    "class_name": "DocItem",
-                    "methods": [
-                        {"method_name": "has_ans_relation"},
-                        {"method_name": "get_travel_list"},
-                        {"method_name": "check_depth"},
-                        {"method_name": "parse_tree_path"},
-                        {"method_name": "get_file_name"},
-                        {"method_name": "get_full_name"},
-                        {"method_name": "find"},
-                        {"method_name": "check_has_task"},
-                        {"method_name": "print_recursive"}
-                    ]
-                },
-                {
-                    "class_name": "MetaInfo",
-                    "methods": [
-                        {"method_name": "get_topology"},
-                        {"method_name": "in_white_list"},
-                        {"method_name": "travel"}
-                    ]
-                }
-            ]
+          "file_path": "./RepoAgent/repo_agent/doc_meta_info.py",
+          "classes": [
+            { 
+              "class_name": "DocItem",
+              "methods": [ 
+                { "method_name": "need_to_generate" },
+                { "method_name": "has_ans_relation" },
+                { "method_name": "get_travel_list" },
+                { "method_name": "check_depth" },
+                { "method_name": "parse_tree_path" },
+                { "method_name": "get_file_name" },
+                { "method_name": "get_full_name" },
+                { "method_name": "find" },
+                { "method_name": "check_has_task" },
+                { "method_name": "print_recursive" }
+              ]
+            }
+          ]
         },
         {
-            "file_path": "./RepoAgent/repo_agent/runner.py",
-            "classes": [
-                {
-                    "class_name": "Runner",
-                    "methods": [
-                        {"method_name": "first_generate"}
-                    ]
-                }
-            ]
+          "file_path": "./RepoAgent/repo_agent/runner.py",
+          "classes": [
+            { 
+              "class_name": "Runner",
+              "methods": [ 
+                { "method_name": "get_all_pys" },
+                { "method_name": "generate_doc_for_a_single_item" },
+                { "method_name": "first_generate" },
+                { "method_name": "markdown_refresh" },
+                { "method_name": "git_commit" },
+                { "method_name": "run" },
+                { "method_name": "add_new_item" },
+                { "method_name": "process_file_changes" },
+                { "method_name": "update_existing_item" },
+                { "method_name": "update_object" },
+                { "method_name": "get_new_objects" }
+              ]
+            }
+          ]
         }
-    ]
+      ] 
 }
 """
