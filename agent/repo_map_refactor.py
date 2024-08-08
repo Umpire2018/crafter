@@ -1,4 +1,3 @@
-from regex import P
 import tree_sitter_python
 import os
 from tree_sitter import Language, Parser, Node
@@ -35,6 +34,9 @@ class RepoMap:
         }
         self.current_class = None
         self.function_name = None
+        self.function_ranges = {}
+        self.function_calls = {}   # 函数调用信息
+        self.class_name = None
 
     def parse_file(self, file_path: str) -> tuple[Node, bytes]:
         """
@@ -55,7 +57,7 @@ class RepoMap:
         parser = self.parsers[ext]
         tree = parser.parse(source_code)
         return tree, source_code
-    
+
     def visit_node(self, node: Node, source_code: str, file_path: str):
         """
         Traverse the node and process class, function definitions and their internal contents.
@@ -71,10 +73,10 @@ class RepoMap:
 
         while True:
             node_type = cursor.node.type
-            current_end_line, current_end_column = cursor.node.end_point
+            current_end_line, _ = cursor.node.end_point
 
-            if node_type in ["import_statement", "import_from_statement", "class_definition", "function_definition"]: 
-
+            print
+            if node_type in ["import_statement", "import_from_statement", "class_definition", "function_definition"]:
                 if current_end_line < highest_end_line:
                     if not cursor.goto_next_sibling():
                         break
@@ -91,11 +93,68 @@ class RepoMap:
 
                 highest_end_line = current_end_line
 
+            elif node_type == "call":
+                self.process_call_node(cursor.node, source_code, file_path)
+
             if cursor.goto_first_child():
                 continue
             while not cursor.goto_next_sibling():
                 if not cursor.goto_parent():
                     return
+    def is_imported(self, call_name, import_statements):
+        """
+        Check if a call name is part of the imported statements.
+
+        Args:
+            call_name (str): The name of the function being called.
+            import_statements (dict): Dictionary of import statements.
+
+        Returns:
+            bool: True if the call name is part of the imported statements, False otherwise.
+        """
+        for module, entities in import_statements.items():
+            if entities is None:
+                # Handle imports like "import asyncio"
+                if call_name == module or call_name.startswith(f"{module}."):
+                    return True
+            else:
+                # Handle imports like "from module import entity"
+                for entity in entities:
+                    if call_name == entity:
+                        return True
+        return False
+
+    def process_call_node(self, call_node: Node, source_code: str, file_path):
+        """
+        Process a call node and print its details.
+
+        Args:
+            call_node (Node): The call node to process.
+            source_code (str): The source code of the file.
+        """
+        call_text = self.get_node_text(call_node, source_code)
+        call_line, _ = call_node.start_point
+
+        # 检查 call 引用对象是否在导入语句中
+        import_statements = self.imports[file_path]
+
+        # 查找当前行号所属的函数
+        for function_name, (start_line, end_line) in self.function_ranges.items():
+            if start_line <= call_line <= end_line:
+                # 检查 call 节点的子节点
+                for child in call_node.children:
+                    if child.type in ["identifier", "attribute"]:
+                        call_name = self.get_node_text(child, source_code)
+                        # print(f"call_name: {call_name} 是否满足导入： {self.is_imported(call_name, import_statements)}")
+
+                        if self.is_imported(call_name, import_statements):
+                            if function_name not in self.function_calls:
+                                self.function_calls[function_name] = []
+                            self.function_calls[function_name].append(call_name)
+                            print(f"Call Node: {call_text}")
+                            print(f"  Belongs to function: {function_name}")
+                            print(f"  References: {call_name}")
+                break
 
     def process_class_definition(self, class_node: Node, source_code: str, file_path: str):
         self.class_name = self.get_node_text(
@@ -126,6 +185,12 @@ class RepoMap:
             decorators = self.get_decorators(function_node, source_code)
 
         function_name = self.get_node_text(function_node.child_by_field_name("name"), source_code)
+        
+        start_line, _ = function_node.start_point
+        end_line, _ = function_node.end_point
+
+        # 记录函数的开始行和结束行
+        self.function_ranges[function_name] = (start_line, end_line)
 
         # NOTE: Add self.function_name to check if the function is already processed to avoid when the content of function is "pass", then endline is equal to class endline, which will be processed again.
         if function_name == self.function_name:
@@ -176,7 +241,6 @@ class RepoMap:
             if sub_child.type == "function_definition":
                 self.process_function_definition(sub_child, source_code, file_path, decorators)
 
-
     def process_import_statement(self, node, source_code, file_path):
         """
         Process an import statement and update the import_statements dictionary.
@@ -210,24 +274,6 @@ class RepoMap:
                 elif child.type == "import_list":
                     for name in child.named_children:
                         import_statements[module_name].append(self.get_node_text(name, source_code))
-
-    def is_imported(self, call_name, import_statements):
-        """
-        Check if a call name is part of the imported statements.
-
-        Args:
-            call_name (str): The name of the function being called.
-            import_statements (dict): Dictionary of import statements.
-
-        Returns:
-            bool: True if the call name is part of the imported statements, False otherwise.
-        """
-        for alias, module in import_statements.items():
-            if call_name == alias or call_name.startswith(f"{alias}."):
-                return True
-            if module and (call_name == module or call_name.startswith(f"{module}.")):
-                return True
-        return False
 
     def get_function_signature(
         self, node: Node, source_code: str
@@ -325,8 +371,9 @@ class RepoMap:
             except Exception as e:
                 print(f"Error parsing {file_path}: {e}")
 
-        print(f"Original Import map: {self.imports}")
-        
+        print(f"Original Import map: {self.imports} \n")
+        # print(f"Original Repo map: {self.repo_map}")
+
         # Printing the repository map in the desired format
         for file_path, classes in self.repo_map.items():
             print(f"{file_path}:")
@@ -392,10 +439,10 @@ if __name__ == "__main__":
     # Example file list with classes and methods to filter
     file_dict = [
         "./RepoAgent/repo_agent/doc_meta_info.py",
-        "./RepoAgent/repo_agent/runner.py", 
+        # "./RepoAgent/repo_agent/runner.py", 
         "./RepoAgent/repo_agent/utils/meta_info_utils.py", 
-        "./RepoAgent/repo_agent/exceptions.py", 
-        "./RepoAgent/repo_agent/settings.py",
+        # "./RepoAgent/repo_agent/exceptions.py", 
+        # "./RepoAgent/repo_agent/settings.py",
         # "agent/test.py",
     ]
 
