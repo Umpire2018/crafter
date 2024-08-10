@@ -2,6 +2,8 @@ import tree_sitter_python
 import os
 from tree_sitter import Language, Parser, Node
 from collections import defaultdict
+from typing import Dict, List
+
 
 # Initialize languages
 LANGUAGE_MAP = {
@@ -12,7 +14,7 @@ LANGUAGE_MAP = {
 class RepoMap:
     """Class to map the repository structure with classes, functions, and class attributes."""
 
-    def __init__(self, file_dict: dict[str, dict[str, list[str] | None]]):
+    def __init__(self, file_dict: List[str] | None):
         """
         Initialize RepoMap with a dictionary of files, classes, and functions.
 
@@ -23,13 +25,18 @@ class RepoMap:
         self.file_dict = file_dict
         self.repo_map = defaultdict(
             lambda: defaultdict(
-                lambda: {"methods": [], "attributes": [], "class_decorators": [], "references": []}
+                lambda: {"methods": [], "attributes": [], "class_decorators": []}
             )
         )
+        self.imports = defaultdict(lambda:{})
         self.parsers = {
             ext: Parser(Language(lang.language())) for ext, lang in LANGUAGE_MAP.items()
         }
         self.current_class = None
+        self.function_name = None
+        self.function_ranges = {}
+        self.function_calls = {}
+        self.class_name = None
 
     def parse_file(self, file_path: str) -> tuple[Node, bytes]:
         """
@@ -51,61 +58,40 @@ class RepoMap:
         tree = parser.parse(source_code)
         return tree, source_code
 
-    def visit_node(self, node: Node, source_code: str, file_path):
+    def visit_node(self, node: Node, source_code: str, file_path: str):
         """
-        Visit a node in the syntax tree and process class and function definitions.
+        Traverse the node and process class, function definitions and their internal contents.
 
         Args:
-            node (Node): The current node to process.
-            source_code (str): The source code of the file.
-            file_path (str): The path of the file.
+            node (Node): Current node.
+            source_code (str): Source code of the file.
+            file_path (str): Path of the file.
         """
         cursor = node.walk()
-        import_statements = {}
+        highest_end_line = 0
+        current_end_line = 0
 
         while True:
+            node_type = cursor.node.type
+            current_end_line, _ = cursor.node.end_point
 
-            if cursor.node.type in ["import_statement", "import_from_statement"]:
-                self.process_import_statement(cursor.node, source_code, import_statements)
-            elif cursor.node.type == "class_definition":
-                class_name = self.get_node_text(
-                    cursor.node.child_by_field_name("name"), source_code
-                )
-                if not class_name:
-                    class_name = self.get_node_text(
-                        cursor.node.child_by_field_name("identifier"), source_code
-                    )
-                self.current_class = class_name
-                decorators = self.get_decorators(cursor.node, source_code)
-                self.repo_map[file_path][self.current_class]["class_decorators"] = (
-                    decorators
-                )
-                self.process_class_body(cursor.node, source_code, file_path)
-            elif cursor.node.type == "function_definition" and not self.current_class:
-                function_name = self.get_node_text(
-                    cursor.node.child_by_field_name("name"), source_code
-                )
-                if not function_name:
-                    function_name = self.get_node_text(
-                        cursor.node.child_by_field_name("identifier"), source_code
-                    )
+            if node_type in ["import_statement", "import_from_statement", "class_definition", "function_definition"]:   
+                if current_end_line < highest_end_line:
+                    if not cursor.goto_next_sibling():
+                        break
+                    continue
 
-                parameters, return_type = self.get_function_signature(
-                    cursor.node, source_code
-                )
-                is_async = any(child.type == "async" for child in cursor.node.children)
-                decorators = self.get_decorators(cursor.node, source_code)
+                if node_type in ["import_statement", "import_from_statement"]:
+                    self.process_import_statement(cursor.node, source_code, file_path)
+                elif node_type == "class_definition":
+                    self.process_class_definition(cursor.node, source_code, file_path)
+                elif node_type == "function_definition":
+                    self.process_function_definition(cursor.node, source_code, file_path)
 
-                self.repo_map[file_path]["<top-level>"]["methods"].append(
-                    (function_name, parameters, return_type, is_async, decorators)
-                )
-            elif cursor.node.type == "call":
-                call_name = self.get_node_text(cursor.node.child_by_field_name("function"), source_code)
-                if self.is_imported(call_name, import_statements):  
-                    if self.current_class:
-                        self.repo_map[file_path][self.current_class]["references"].append(call_name)
-                    else:
-                        self.repo_map[file_path]["<top-level>"]["references"].append(call_name)
+                highest_end_line = current_end_line
+
+            elif node_type == "call":
+                self.process_call_node(cursor.node, source_code, file_path)
 
             if cursor.goto_first_child():
                 continue
@@ -113,15 +99,157 @@ class RepoMap:
                 if not cursor.goto_parent():
                     return
                 
-    def process_import_statement(self, node, source_code, import_statements):
+    def is_imported(self, call_name, import_statements):
+        """
+        Check if a call name is part of the imported statements and return the corresponding import statement.
+
+        Args:
+            call_name (str): The name of the function being called.
+            import_statements (dict): Dictionary of import statements.
+
+        Returns:
+            tuple: (bool, str) - A tuple where the first element is True if the call name is part of the imported statements, False otherwise, and the second element is the corresponding import statement if found, otherwise an empty string.
+        """
+        for module, entities in import_statements.items():
+            if entities is None:
+                # Handle imports like "import asyncio"
+                if call_name == module or call_name.startswith(f"{module}."):
+                    return True, f"{module}"
+            else:
+                # Handle imports like "from module import entity"
+                for entity in entities:
+                    if call_name == entity:
+                        return True, f"{module}"
+        return False, ""
+
+
+    def process_call_node(self, call_node: Node, source_code: str, file_path):
+        """
+        Process a call node and print its details.
+
+        Args:
+            call_node (Node): The call node to process.
+            source_code (str): The source code of the file.
+        """
+        call_text = self.get_node_text(call_node, source_code)
+        call_line, _ = call_node.start_point
+
+        import_statements = self.imports[file_path]
+        
+        # TODO: Right now we use import statements to determine the source of call names but we have not add this statement to repo_map.
+        for function_name, (start_line, end_line) in self.function_ranges.items():
+            if start_line <= call_line <= end_line:
+                for child in call_node.children:
+                    if child.type in ["identifier", "attribute"]:
+                        call_name = self.get_node_text(child, source_code)
+
+                        imported_or_not, import_statement = self.is_imported(call_name, import_statements)
+                        if imported_or_not:
+                            if function_name not in self.function_calls:
+                                self.function_calls[function_name] = []
+                            self.function_calls[function_name].append((call_name, import_statement))
+                            print(f"Call Node: {call_text}")
+                            print(f"  Belongs to function: {function_name}")
+                            print(f"  References: {call_name}")
+                            print(f"Current function calls: {self.function_calls}")
+                break
+
+    def process_class_definition(self, class_node: Node, source_code: str, file_path: str):
+        self.class_name = self.get_node_text(
+                    class_node.child_by_field_name("name"), source_code
+                )
+        print(f"Class Name: {self.class_name}")
+
+        class_decorators = self.get_decorators(class_node, source_code)
+        self.repo_map[file_path][self.class_name]["class_decorators"] = class_decorators
+
+        body_node = class_node.child_by_field_name("body")
+        if body_node:
+            for child in body_node.children:
+                if child.type == "expression_statement":
+                    self.process_expression_statement(child, source_code, file_path)
+                elif child.type == "function_definition":
+                    self.process_function_definition(child, source_code, file_path)
+                elif child.type == "decorated_definition":
+                    self.process_decorated_definition(child, source_code, file_path)
+                    
+        self.class_name = None
+
+    def process_function_definition(self, function_node: Node, source_code: str, file_path: str, decorators=None):
+        parameters, return_type = self.get_function_signature(function_node, source_code)
+        is_async = any(child.type == "async" for child in function_node.children)
+        if decorators is None:
+            decorators = self.get_decorators(function_node, source_code)
+
+        function_name = self.get_node_text(function_node.child_by_field_name("name"), source_code)
+        
+        start_line, _ = function_node.start_point
+        end_line, _ = function_node.end_point
+
+        # Record the starting and ending lines of the function
+        # FIXME: What if there are no function name?
+        self.function_ranges[function_name] = (start_line, end_line)
+
+        # NOTE: Add self.function_name to check if the function is already processed to avoid when the content of function is "pass", then endline is equal to class endline, which will be processed again.
+        if function_name == self.function_name:
+            return
+        self.function_name = function_name
+
+        if self.class_name:
+            self.repo_map[file_path][self.class_name]["methods"].append(
+                (function_name, parameters, return_type, is_async, decorators)
+            )
+        else:
+            self.repo_map[file_path]["<top-level>"]["methods"].append(
+                (function_name, parameters, return_type, is_async, decorators)
+            )
+
+    def process_expression_statement(self, expr_node: Node, source_code: str, file_path: str):
+        """
+        Process an expression statement node.
+
+        Args:
+            expr_node (Node): The expression statement node to process.
+            source_code (str): The source code of the file.
+            file_path (str): The path of the file.
+        """
+        assignment = next((c for c in expr_node.children if c.type == "assignment"), None)
+        if assignment:
+            left = assignment.child_by_field_name("left")
+            right = assignment.child_by_field_name("right")
+            if left and right and left.type == "identifier":
+                attr_name = self.get_node_text(left, source_code)
+                attr_value = self.get_node_text(right, source_code)
+                if self.class_name:
+                    self.repo_map[file_path][self.class_name]["attributes"].append((attr_name, attr_value))
+                else:
+                    self.repo_map[file_path]["attributes"].append((attr_name, attr_value))
+
+    def process_decorated_definition(self, decorated_node: Node, source_code: str, file_path: str):
+        """
+        Process a decorated definition node.
+
+        Args:
+            decorated_node (Node): The decorated definition node to process.
+            source_code (str): The source code of the file.
+            file_path (str): The path of the file.
+        """
+        decorators = self.get_decorators(decorated_node, source_code)
+        for sub_child in decorated_node.children:
+            if sub_child.type == "function_definition":
+                self.process_function_definition(sub_child, source_code, file_path, decorators)
+
+    def process_import_statement(self, node, source_code, file_path):
         """
         Process an import statement and update the import_statements dictionary.
 
         Args:
             node (Node): The import statement node.
             source_code (str): The source code of the file.
-            import_statements (dict): Dictionary to store import information.
+            file_path (str): Path of the file.
         """
+        import_statements = self.imports[file_path]
+
         if node.type == "import_statement":
             for child in node.children:
                 if child.type == "dotted_name":
@@ -131,106 +259,19 @@ class RepoMap:
                     module_name = self.get_node_text(child.child_by_field_name("name"), source_code)
                     alias_name = self.get_node_text(child.child_by_field_name("alias"), source_code)
                     import_statements[alias_name] = module_name
+        
         elif node.type == "import_from_statement":
-            module_name = self.get_node_text(node.child_by_field_name("module"), source_code)
-            imported_names = []
+            module_name = ""
             for child in node.children:
-                if child.type == "dotted_name" and child != node.child_by_field_name("module"):
-                    imported_name = self.get_node_text(child, source_code)
-                    imported_names.append(imported_name)
-                    import_statements[imported_name] = module_name
-
-    def is_imported(self, call_name, import_statements):
-        """
-        Check if a call name is part of the imported statements.
-
-        Args:
-            call_name (str): The name of the function being called.
-            import_statements (dict): Dictionary of import statements.
-
-        Returns:
-            bool: True if the call name is part of the imported statements, False otherwise.
-        """
-        for alias, module in import_statements.items():
-            if call_name == alias or call_name.startswith(f"{alias}."):
-                return True
-            if module and (call_name == module or call_name.startswith(f"{module}.")):
-                return True
-        return False
-    
-    def process_class_body(self, class_node: Node, source_code: str, file_path: str):
-        """
-        Process the body of a class to extract class attributes.
-
-        Args:
-            class_node (Node): The class node to process.
-            source_code (str): The source code of the file.
-            file_path (str): The path of the file.
-        """
-        body_node = class_node.child_by_field_name("body")
-        if body_node:
-            for child in body_node.children:
-                if child.type == "expression_statement":
-                    assignment = next(
-                        (c for c in child.children if c.type == "assignment"), None
-                    )
-                    if assignment:
-                        left = assignment.child_by_field_name("left")
-                        right = assignment.child_by_field_name("right")
-                        if left and right and left.type == "identifier":
-                            attr_name = self.get_node_text(left, source_code)
-                            attr_value = self.get_node_text(right, source_code)
-                            self.repo_map[file_path][self.current_class][
-                                "attributes"
-                            ].append((attr_name, attr_value))
-                elif child.type == "function_definition":
-                    function_name = self.get_node_text(
-                        child.child_by_field_name("name"), source_code
-                    )
-                    if not function_name:
-                        function_name = self.get_node_text(
-                            child.child_by_field_name("identifier"), source_code
-                        )
-
-                    parameters, return_type = self.get_function_signature(
-                        child, source_code
-                    )
-                    is_async = any(c.type == "async" for c in child.children)
-                    decorators = self.get_decorators(child, source_code)
-
-                    self.repo_map[file_path][self.current_class]["methods"].append(
-                        (function_name, parameters, return_type, is_async, decorators)
-                    )
-                elif child.type == "decorated_definition":
-                    decorators = self.get_decorators(child, source_code)
-                    for sub_child in child.children:
-                        if sub_child.type == "function_definition":
-                            function_name = self.get_node_text(
-                                sub_child.child_by_field_name("name"), source_code
-                            )
-                            if not function_name:
-                                function_name = self.get_node_text(
-                                    sub_child.child_by_field_name("identifier"),
-                                    source_code,
-                                )
-                            parameters, return_type = self.get_function_signature(
-                                sub_child, source_code
-                            )
-                            is_async = any(
-                                c.type == "async" for c in sub_child.children
-                            )
-
-                            self.repo_map[file_path][self.current_class][
-                                "methods"
-                            ].append(
-                                (
-                                    function_name,
-                                    parameters,
-                                    return_type,
-                                    is_async,
-                                    decorators,
-                                )
-                            )
+                if child.type == "dotted_name":
+                    if not module_name:
+                        module_name = self.get_node_text(child, source_code)
+                        import_statements[module_name] = import_statements.get(module_name, [])
+                    else:
+                        import_statements[module_name].append(self.get_node_text(child, source_code))
+                elif child.type == "import_list":
+                    for name in child.named_children:
+                        import_statements[module_name].append(self.get_node_text(name, source_code))
 
     def get_function_signature(
         self, node: Node, source_code: str
@@ -321,107 +362,87 @@ class RepoMap:
         """
         Generate the repository map by parsing all files in the file list.
         """
-        for file_path in self.file_dict.keys():
-            tree, source_code = self.parse_file(file_path)
-            self.visit_node(tree.root_node, source_code, file_path)
+        for file_path in self.file_dict:
+            try:
+                tree, source_code = self.parse_file(file_path)
+                self.visit_node(tree.root_node, source_code, file_path)
+            except Exception as e:
+                print(f"Error parsing {file_path}: {e}")
 
-    def display_repo_map(self):
-        """
-        Display the repository map with class and function definitions.
-        """
-        for file_path, filter_dict in self.file_dict.items():
-            if file_path in self.repo_map:
-                print(f"{file_path}:")
-                for class_name, class_info in self.repo_map[file_path].items():
-                    if filter_dict is None or class_name in filter_dict:
-                        decorators = class_info["class_decorators"]
-                        decorator_str = "".join(
-                            [f"{decorator}\n    " for decorator in decorators]
-                        )
-                        print(f"    {decorator_str}class {class_name}:")
-                        for attr_name, attr_value in class_info["attributes"]:
-                            print(f"        {attr_name} = {attr_value}")
-                        for (
-                            method,
-                            parameters,
-                            return_type,
-                            is_async,
-                            decorators,
-                        ) in class_info["methods"]:
-                            if (
-                                filter_dict is None
-                                or filter_dict.get(class_name) is None
-                                or method in filter_dict.get(class_name, [])
-                            ):
-                                param_str = ", ".join(
-                                    [
-                                        f"{name}"
-                                        if ptype is None
-                                        else f"{name}: {ptype}"
-                                        for name, ptype in parameters
-                                    ]
-                                )
-                                return_str = f" -> {return_type}" if return_type else ""
-                                async_str = "async " if is_async else ""
-                                decorator_str = "".join(
-                                    [
-                                        f"{decorator}\n        "
-                                        for decorator in decorators
-                                    ]
-                                )
-                                print(
-                                    f"        {decorator_str}{async_str}def {method}({param_str}){return_str}"
-                                )
-                        # Print references
-                        if class_info["references"]:
-                            print("        # References:")
-                            for ref in class_info["references"]:
-                                print(f"        #   {ref}")
-                    if "<top-level>" in (filter_dict or {}):
-                        for (
-                            method,
-                            parameters,
-                            return_type,
-                            is_async,
-                            decorators,
-                        ) in self.repo_map[file_path]["<top-level>"]["methods"]:
-                            if (
-                                filter_dict is None
-                                or filter_dict.get("<top-level>") is None
-                                or method in filter_dict["<top-level>"]
-                            ):
-                                param_str = ", ".join(
-                                    [
-                                        f"{name}"
-                                        if ptype is None
-                                        else f"{name}: {ptype}"
-                                        for name, ptype in parameters
-                                    ]
-                                )
-                                return_str = f" -> {return_type}" if return_type else ""
-                                async_str = "async " if is_async else ""
-                                decorator_str = "".join(
-                                    [f"@{decorator}\n    " for decorator in decorators]
-                                )
-                                print(
-                                    f"    {decorator_str}{async_str}def {method}({param_str}){return_str}"
-                                )
-                        # Print top-level references
-                        if self.repo_map[file_path]["<top-level>"]["references"]:
-                            print("    # References:")
-                            for ref in self.repo_map[file_path]["<top-level>"]["references"]:
-                                print(f"    #   {ref}")
+        # print(f"Original Import map: {self.imports} \n")
+        print(f"Original Repo map: {self.repo_map}")
 
+        # Printing the repository map in the desired format
+        for file_path, classes in self.repo_map.items():
+            print(f"{file_path}:")
+
+            if file_path in self.imports:
+                print("  Imports:")
+                for module_name, imported_names in self.imports[file_path].items():
+                    if imported_names is None:
+                        print(f"    import {module_name}")
+                    elif imported_names:
+                        if len(imported_names) == 1:
+                            print(f"    from {module_name} import {imported_names[0]}")
+                        else:
+                            imports_str = ", ".join(imported_names)
+                            print(f"    from {module_name} import {imports_str}")
+
+            for class_name, class_contents in classes.items():
+                if class_name == "<top-level>":
+                    print("  <top-level>:")
+                    self.print_methods(class_contents["methods"], indent=4)
+                else:
+                    class_decorators = class_contents["class_decorators"]
+                    if class_decorators:
+                        for decorator in class_decorators:
+                            print(f"  {decorator}")
+                    print(f"  class {class_name}:")
+                    self.print_attributes(class_contents["attributes"], indent=4)
+                    self.print_methods(class_contents["methods"], indent=4)
+            print("")  # Add a blank line between files for readability
+
+    def print_methods(self, methods, indent=2):
+        """
+        Print the methods in the desired format.
+
+        Args:
+            methods (list): List of methods to print.
+            indent (int): Indentation level.
+        """
+        indent_str = ' ' * indent
+        for method in methods:
+            method_name, parameters, return_type, is_async, decorators = method
+            async_str = "async " if is_async else ""
+            params_str = ", ".join([f"{name}: {ptype}" if ptype else name for name, ptype in parameters])
+            return_str = f" -> {return_type}" if return_type else ""
+            if decorators:
+                for decorator in decorators:
+                    print(f"{indent_str}{decorator}")
+            print(f"{indent_str}{async_str}def {method_name}({params_str}){return_str}")
+
+    def print_attributes(self, attributes, indent=4):
+        """
+        Print the class attributes in the desired format.
+
+        Args:
+            attributes (list): List of attributes to print.
+            indent (int): Indentation level.
+        """
+        indent_str = ' ' * indent
+        for attr_name, attr_value in attributes:
+            print(f"{indent_str}{attr_name} = {attr_value}")
 
 if __name__ == "__main__":
     # Example file list with classes and methods to filter
-    file_dict = {
-        # "./RepoAgent/repo_agent/doc_meta_info.py": {
-        #     "DocItem": None,
-        # },
-        "agent/test.py": None,
-    }
+    file_dict = [
+        # "./RepoAgent/repo_agent/doc_meta_info.py",
+        # "./RepoAgent/repo_agent/runner.py", 
+        # "./RepoAgent/repo_agent/utils/meta_info_utils.py", 
+        # "./RepoAgent/repo_agent/exceptions.py", 
+        # "./RepoAgent/repo_agent/settings.py",
+        "agent/test.py",
+    ]
 
     repo_map = RepoMap(file_dict)
     repo_map.generate_repo_map()
-    repo_map.display_repo_map()
