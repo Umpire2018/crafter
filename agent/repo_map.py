@@ -80,7 +80,8 @@ class RepoMap:
                     if not cursor.goto_next_sibling():
                         break
                     continue
-
+                
+                # TODO: Add comment for reference.
                 if node_type in ["import_statement", "import_from_statement"]:
                     self.process_import_statement(cursor.node, source_code, file_path)
                 elif node_type == "class_definition":

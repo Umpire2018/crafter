@@ -1,16 +1,21 @@
-review_issue_with_file_structure = """
-Please thoroughly review the following GitHub issue description and the file structure of the associated GitHub repository names {target_repository_name}. From the file structure, select five files that you believe can assist in resolving the issue. Return the paths of these files, starting with the target repository's root, in the following JSON format:
+from llama_index.core import PromptTemplate
 
-{{"possible_helping_files":["./{target_repository_name}/file1.py"]}}
+# NOTE:
+# 1. 可能出现文件不在目标仓库
+# 2. 文件路径为以目标仓库开头，如 ./repo_agent/runners/__init__.py 而不是 ./RepoAgent/repo_agent/__init__.py
+review_issue_with_file_structure_prompt_str = (
+    "We are working on resolving a specific issue described in the GitHub issue for the repository named {target_repository_name} which main languages is python. "
+    "From the tree structure, select five files that you believe can assist in resolving the issue. \n"
+    "### GitHub Issue Description\n"
+    "{github_issue_description}\n"
+    "### Repository Tree Structure\n"
+    "{repository_tree_structure}\n"
+    "Return the paths of these files, starting with the target repository's root, in the following JSON format:\n"
+  	"{{'possible_helping_files': ['./{target_repository_name}/file_name_template.py']}}"
+)
 
-### GitHub Issue Description
+review_issue_with_file_structure_template = PromptTemplate(review_issue_with_file_structure_prompt_str)
 
-{github_issue_description}
-
-### Repository Tree Structure 
-
-{repository_tree_structure}
-"""
 
 test_review_issue_with_file_structure = """
 Please thoroughly review the following GitHub issue description and the file structure of the associated GitHub repository names RepoAgent. From the file structure, select five files that you believe can assist in resolving the issue. Return the paths of these files, starting with the target repository's root, in the following JSON format:
