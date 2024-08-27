@@ -1,8 +1,9 @@
-import tree_sitter_python
 import os
+import json
+import tree_sitter_python
 from tree_sitter import Language, Parser, Node
 from collections import defaultdict
-from typing import Dict, List
+from typing import List
 
 
 # Initialize languages
@@ -11,19 +12,19 @@ LANGUAGE_MAP = {
 }
 
 
-class RepoMap:
+class FileMap:
     """Class to map the repository structure with classes, functions, and class attributes."""
 
     def __init__(self, file_dict: List[str] | None):
         """
-        Initialize RepoMap with a dictionary of files, classes, and functions.
+        Initialize FileMap with a dictionary of files, classes, and functions.
 
         Args:
             file_dict (dict[str, dict[str, list[str] | None]]): Dictionary with file paths as keys and
                 a dictionary of classes and functions as values.
         """
         self.file_dict = file_dict
-        self.repo_map = defaultdict(
+        self.file_map = defaultdict(
             lambda: defaultdict(
                 lambda: {"methods": [], "attributes": [], "class_decorators": []}
             )
@@ -32,6 +33,7 @@ class RepoMap:
         self.parsers = {
             ext: Parser(Language(lang.language())) for ext, lang in LANGUAGE_MAP.items()
         }
+        self.file_data = defaultdict(lambda: {"Imports": [], "Classes": [], "Top level": []})
         self.current_class = None
         self.function_name = None
         self.function_ranges = {}
@@ -68,28 +70,35 @@ class RepoMap:
             file_path (str): Path of the file.
         """
         cursor = node.walk()
-        highest_end_line = 0
         current_end_line = 0
 
         while True:
             node_type = cursor.node.type
-            current_end_line, _ = cursor.node.end_point
 
+            start_line, _ = cursor.node.start_point
+            current_end_line, _ = cursor.node.end_point
+            
             if node_type in ["import_statement", "import_from_statement", "class_definition", "function_definition"]:   
-                if current_end_line < highest_end_line:
-                    if not cursor.goto_next_sibling():
-                        break
-                    continue
                 
                 # TODO: Add comment for reference.
                 if node_type in ["import_statement", "import_from_statement"]:
+                    self.file_data[file_path]["Imports"].append({
+                        "start_line": start_line + 1,
+                        "end_line": current_end_line + 1,
+                        "text": source_code[cursor.node.start_byte:cursor.node.end_byte].decode("utf-8").splitlines(True)
+                    })
                     self.process_import_statement(cursor.node, source_code, file_path)
+
                 elif node_type == "class_definition":
+                    self.file_data[file_path]["Classes"].append({
+                        "start_line": start_line + 1,
+                        "end_line": current_end_line + 1,
+                        "text": source_code[cursor.node.start_byte:cursor.node.end_byte].decode("utf-8").splitlines(True)
+                    })
                     self.process_class_definition(cursor.node, source_code, file_path)
+
                 elif node_type == "function_definition":
                     self.process_function_definition(cursor.node, source_code, file_path)
-
-                highest_end_line = current_end_line
 
             elif node_type == "call":
                 self.process_call_node(cursor.node, source_code, file_path)
@@ -137,7 +146,7 @@ class RepoMap:
 
         import_statements = self.imports[file_path]
         
-        # TODO: Right now we use import statements to determine the source of call names but we have not add this statement to repo_map.
+        # TODO: Right now we use import statements to determine the source of call names but we have not add this statement to file_map.
         for function_name, (start_line, end_line) in self.function_ranges.items():
             if start_line <= call_line <= end_line:
                 for child in call_node.children:
@@ -159,10 +168,9 @@ class RepoMap:
         self.class_name = self.get_node_text(
                     class_node.child_by_field_name("name"), source_code
                 )
-        print(f"Class Name: {self.class_name}")
-
+        
         class_decorators = self.get_decorators(class_node, source_code)
-        self.repo_map[file_path][self.class_name]["class_decorators"] = class_decorators
+        self.file_map[file_path][self.class_name]["class_decorators"] = class_decorators
 
         body_node = class_node.child_by_field_name("body")
         if body_node:
@@ -197,11 +205,16 @@ class RepoMap:
         self.function_name = function_name
 
         if self.class_name:
-            self.repo_map[file_path][self.class_name]["methods"].append(
+            self.file_map[file_path][self.class_name]["methods"].append(
                 (function_name, parameters, return_type, is_async, decorators)
             )
         else:
-            self.repo_map[file_path]["<top-level>"]["methods"].append(
+            self.file_data[file_path]["Top level"].append({
+                "start_line": start_line + 1,
+                "end_line": end_line + 1,
+                "text": source_code[function_node.start_byte:function_node.end_byte].decode("utf-8").splitlines(True)
+            })
+            self.file_map[file_path]["<top-level>"]["methods"].append(
                 (function_name, parameters, return_type, is_async, decorators)
             )
 
@@ -222,9 +235,9 @@ class RepoMap:
                 attr_name = self.get_node_text(left, source_code)
                 attr_value = self.get_node_text(right, source_code)
                 if self.class_name:
-                    self.repo_map[file_path][self.class_name]["attributes"].append((attr_name, attr_value))
+                    self.file_map[file_path][self.class_name]["attributes"].append((attr_name, attr_value))
                 else:
-                    self.repo_map[file_path]["attributes"].append((attr_name, attr_value))
+                    self.file_map[file_path]["attributes"].append((attr_name, attr_value))
 
     def process_decorated_definition(self, decorated_node: Node, source_code: str, file_path: str):
         """
@@ -359,7 +372,7 @@ class RepoMap:
             source_code[node.start_byte : node.end_byte].decode("utf-8") if node else ""
         )
 
-    def generate_repo_map(self):
+    def generate_file_map(self):
         """
         Generate the repository map by parsing all files in the file list.
         """
@@ -371,10 +384,10 @@ class RepoMap:
                 print(f"Error parsing {file_path}: {e}")
 
         # print(f"Original Import map: {self.imports} \n")
-        print(f"Original Repo map: {self.repo_map}")
+        print(f"Original Repo map: {self.file_map}")
 
         # Printing the repository map in the desired format
-        for file_path, classes in self.repo_map.items():
+        for file_path, classes in self.file_map.items():
             print(f"{file_path}:")
 
             if file_path in self.imports:
@@ -434,16 +447,48 @@ class RepoMap:
         for attr_name, attr_value in attributes:
             print(f"{indent_str}{attr_name} = {attr_value}")
 
+    def save_to_json(self, output_path: str):
+        """
+        Save the details of imports, classes, and top-level functions to a JSON file.
+
+        Args:
+            output_path (str): Path to save the JSON file.
+        """
+        with open(output_path, "w", encoding="utf-8") as json_file:
+            json.dump(self.file_data, json_file, ensure_ascii=False, indent=4)
+
+    def get_text_by_relative_line(self, file_path: str, section: str, relative_line: int) -> str:
+        """
+        Get the content of a specific relative line in a given section of a file.
+
+        Args:
+            file_path (str): Path of the file.
+            section (str): Section type ("Imports", "Classes", "Top level").
+            relative_line (int): Relative line number within the section.
+
+        Returns:
+            str: Content of the specified line.
+        """
+        if file_path not in self.file_data:
+            raise ValueError(f"File {file_path} not found.")
+        if section not in self.file_data[file_path]:
+            raise ValueError(f"Section {section} not found in file {file_path}.")
+        if not (0 <= relative_line < len(self.file_data[file_path][section])):
+            raise IndexError(f"Relative line {relative_line} is out of range for section {section} in file {file_path}.")
+
+        return self.file_data[file_path][section][relative_line]["text"][relative_line]
+
 if __name__ == "__main__":
     # Example file list with classes and methods to filter
     file_dict = [
         # "./RepoAgent/repo_agent/doc_meta_info.py",
         # "./RepoAgent/repo_agent/runner.py", 
         # "./RepoAgent/repo_agent/utils/meta_info_utils.py", 
-        # "./RepoAgent/repo_agent/exceptions.py", 
+        "./RepoAgent/repo_agent/exceptions.py", 
         # "./RepoAgent/repo_agent/settings.py",
-        "agent/test.py",
+        # "agent/test.py",
     ]
 
-    repo_map = RepoMap(file_dict)
-    repo_map.generate_repo_map()
+    file_map = FileMap(file_dict)
+    file_map.generate_file_map()
+    file_map.save_to_json('repo_structure.json')

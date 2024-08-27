@@ -1,32 +1,23 @@
 from llama_index.core import PromptTemplate
 
-review_issue_to_locate_edit_position_prompt_str = """
-Please review the following GitHub problem description and relevant files, and provide a set of locations that need to be edited to fix the issue.
-The locations can be specified as class names, function or method names, or exact line numbers that require modification.
+review_issue_to_locate_edit_position_prompt_str = (
+    "Please meticulously analyze the following GitHub problem description for the repository named {target_repository_name} which main languages is python and the associated file contents. Your task is to not only identify the specific locations within the codebase that require editing to address the issue but also to provide a reasoned justification for each suggested modification. "
+    "Consider the broader context of the application and how these changes might affect its stability and performance.\n"
+    "GitHub Problem Description:\n"
+    "{problem_statement}\n"
+    "Relevant File Contents:\n"
+    "{file_contents}\n"
+    "Instructions:\n"
+    "- Identify the exact locations that need to be edited.\n"
+    "- Explain why each identified location is critical to the resolution of the issue.\n"
+    "- Provide your output in JSON format for clarity.\n"
+    "Details to Include:\n"
+    "- Line Numbers: The range of lines where the class, method, or function is located.\n"
+    "Note: Precision in identifying the necessary edits is crucial as it directly influences the effectiveness and efficiency of the solution.\n"
+)
 
-### GitHub Problem Description ###
-{problem_statement}
 
-###
-{file_contents}
+review_issue_to_locate_edit_position_template = PromptTemplate(review_issue_to_locate_edit_position_prompt_str)
 
-###
-
-Please provide the class name, function or method name, or the exact line numbers that need to be edited.
-### Examples:
-```
-full_path1/file1.py
-line: 10
-class: MyClass1
-line: 51
-
-full_path2/file2.py
-function: MyClass2.my_method
-line: 12
-
-full_path3/file3.py
-function: my_function
-line: 24
-line: 156
-```
+test_review_issue_to_locate_edit_position = """
 """

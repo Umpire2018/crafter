@@ -1,17 +1,18 @@
 from llama_index.core import PromptTemplate
 
 review_issue_with_file_structure_prompt_str = (
-    "We are working on resolving a specific issue described in the GitHub issue for the repository named {target_repository_name} which main languages is python. "
-    "Based on the file structure provided, identify and select the functions or classes that you think need editing to resolve the issue.. "
+    "Please meticulously analyze the following GitHub problem description for the repository named {target_repository_name} which main languages is python and the associated file contents."
+    "Based on the file structure provided, identify and select the functions or classes that you think need editing to resolve the issue.\n"
     "### GitHub Issue Description\n"
     "{github_issue_description}\n"
     "### Relevant files and their structure\n"
     "{relevant_files_structure}\n"
     "Return the selected functions or classes in the following JSON format:\n"
-    "{'files':[{'file_path': 'path/to/file.py', 'classes': [{ 'class_name': 'ClassName', 'methods': [{'method_name': 'methodName'}]}]}]}\n"
+    "{'files':[{'file_path':'path/to/file.py','classes':[{'class_name':'ClassName','methods':[{'method_name':'methodName'}]}],'variables':[{'variable_name':'variableName'}]}]}\n"
     "Details to Include:\n"
     "- File Path: The path of the file where the function or class is located.\n"
     "- Class Name: The name of the class that contains the method (if applicable).\n"
+    "- Variable Name: The name of the variable that may need modification (if applicable).\n"
     "- Method Name: The name of the method (if applicable).\n"
 )
 

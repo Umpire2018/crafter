@@ -7,6 +7,8 @@ from llama_index.core.llms.function_calling import FunctionCallingLLM
 from llama_index.llms.ollama import Ollama  
 from llama_index.llms.openai_like import OpenAILike
 from agent.constans.default import default_template
+from llama_index.core.base.llms.types import ChatMessage
+
 
 async def is_url_reachable(url):
     try:
@@ -23,7 +25,7 @@ class LLM:
         self.llm: FunctionCallingLLM = None
         self.ollama_is_reachable: bool | None = None
 
-    async def chat(self,  messages: str, **kwargs):
+    async def chat(self,  prompt: str | ChatMessage, **kwargs):
         if self.ollama_is_reachable is None:
             self.ollama_is_reachable = await is_url_reachable(settings.ollama.base_url)
             if self.ollama_is_reachable:
@@ -35,11 +37,11 @@ class LLM:
         temperature = 0 if n == 1 else 0.8
 
         if self.ollama_is_reachable:
-            return await self._chat_with_ollama(messages, temperature, **kwargs)
+            return await self._chat_with_ollama(prompt=prompt, n=n, temperature=temperature, **kwargs)
         else:
-            return await self._chat_with_openai_like(messages, n, temperature, **kwargs)
+            return await self._chat_with_openai_like(prompt=prompt, n=n, temperature=temperature, **kwargs)
         
-    async def _chat_with_ollama(self, prompt: str, temp: float, **kwargs) :
+    async def _chat_with_ollama(self, prompt: str | ChatMessage, n: int, temp: float, **kwargs) :
         if self.llm is None:
             self.llm = Ollama(
                 model=settings.ollama.model,
@@ -50,7 +52,10 @@ class LLM:
             )
         
         async def fetch_response() -> str:
-            messages = default_template.format_messages(prompt=prompt)
+            if isinstance(prompt, str):
+                messages = default_template.format_messages(prompt=prompt)
+            else:
+                messages = prompt
 
             response = await self.llm.achat(
                 messages=messages, temperature=temp, **kwargs
@@ -87,7 +92,7 @@ class LLM:
         Tokens per Second: {tokens_per_second:.2f} tokens/s
         """)
 
-    async def _chat_with_openai_like(self, prompt: str, n: int, temp: float, **kwargs):
+    async def _chat_with_openai_like(self, prompt: str | ChatMessage, n: int, temp: float, **kwargs):
         if self.llm is None:
             self.llm = OpenAILike(
                 model=settings.openai_like.model,
@@ -98,7 +103,10 @@ class LLM:
             )
 
         async def fetch_response() -> str | List[str]:
-            messages = default_template.format_messages(prompt=prompt)
+            if isinstance(prompt, str):
+                messages = default_template.format_messages(prompt=prompt)
+            else:
+                messages = prompt
 
             response = await self.llm.achat(
                 messages=messages, temperature=temp, n=n, **kwargs
