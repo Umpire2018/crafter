@@ -11,10 +11,12 @@ review_issue_with_file_structure_prompt_str = (
     "### Repository Tree Structure\n"
     "{repository_tree_structure}\n"
     "Return the paths of these files, starting with the target repository's root, in the following JSON format:\n"
-  	"{{'possible_helping_files': ['./{target_repository_name}/file_name_template.py']}}"
+    "{{'possible_helping_files': ['./{target_repository_name}/file_name_template.py']}}"
 )
 
-review_issue_with_file_structure_template = PromptTemplate(review_issue_with_file_structure_prompt_str)
+review_issue_with_file_structure_template = PromptTemplate(
+    review_issue_with_file_structure_prompt_str
+)
 
 
 test_review_issue_with_file_structure = """

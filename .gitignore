@@ -192,3 +192,5 @@ pyrightconfig.json
 # Agent
 RepoAgent
 test.py
+database/
+*.sqlite3

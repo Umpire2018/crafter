@@ -17,7 +17,9 @@ review_issue_to_locate_edit_position_prompt_str = (
 )
 
 
-review_issue_to_locate_edit_position_template = PromptTemplate(review_issue_to_locate_edit_position_prompt_str)
+review_issue_to_locate_edit_position_template = PromptTemplate(
+    review_issue_to_locate_edit_position_prompt_str
+)
 
 test_review_issue_to_locate_edit_position = """
 """

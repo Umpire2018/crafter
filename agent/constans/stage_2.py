@@ -16,7 +16,9 @@ review_issue_with_file_structure_prompt_str = (
     "- Method Name: The name of the method (if applicable).\n"
 )
 
-review_issue_with_file_structure_template = PromptTemplate(review_issue_with_file_structure_prompt_str)
+review_issue_with_file_structure_template = PromptTemplate(
+    review_issue_with_file_structure_prompt_str
+)
 
 test_review_issue_with_file_structure = """We are working on resolving a specific issue described in the GitHub issue for the repository named RepoAgent. We have identified relevant files and their structure to address this issue.
 

@@ -1,13 +1,13 @@
 import httpx
 import asyncio
-from agent.config import settings
 from typing import List, Dict
 from loguru import logger
 from llama_index.core.llms.function_calling import FunctionCallingLLM
-from llama_index.llms.ollama import Ollama  
+from llama_index.llms.ollama import Ollama
 from llama_index.llms.openai_like import OpenAILike
-from agent.constans.default import default_template
 from llama_index.core.base.llms.types import ChatMessage
+from agent.constans.default import default_template
+from agent.config import settings
 
 
 async def is_url_reachable(url):
@@ -20,12 +20,11 @@ async def is_url_reachable(url):
 
 
 class LLM:
-
     def __init__(self) -> None:
         self.llm: FunctionCallingLLM = None
         self.ollama_is_reachable: bool | None = None
 
-    async def chat(self,  prompt: str | ChatMessage, **kwargs):
+    async def chat(self, prompt: str | ChatMessage, **kwargs):
         if self.ollama_is_reachable is None:
             self.ollama_is_reachable = await is_url_reachable(settings.ollama.base_url)
             if self.ollama_is_reachable:
@@ -37,20 +36,26 @@ class LLM:
         temperature = 0 if n == 1 else 0.8
 
         if self.ollama_is_reachable:
-            return await self._chat_with_ollama(prompt=prompt, n=n, temperature=temperature, **kwargs)
+            return await self._chat_with_ollama(
+                prompt=prompt, n=n, temp=temperature, **kwargs
+            )
         else:
-            return await self._chat_with_openai_like(prompt=prompt, n=n, temperature=temperature, **kwargs)
-        
-    async def _chat_with_ollama(self, prompt: str | ChatMessage, n: int, temp: float, **kwargs) :
+            return await self._chat_with_openai_like(
+                prompt=prompt, n=n, temp=temperature, **kwargs
+            )
+
+    async def _chat_with_ollama(
+        self, prompt: str | ChatMessage, n: int, temp: float, **kwargs
+    ):
         if self.llm is None:
             self.llm = Ollama(
                 model=settings.ollama.model,
                 base_url=settings.ollama.base_url,
                 context_window=settings.ollama.context_window,
                 request_timeout=settings.ollama.request_timeout,
-                json_mode=True
+                json_mode=True,
             )
-        
+
         async def fetch_response() -> str:
             if isinstance(prompt, str):
                 messages = default_template.format_messages(prompt=prompt)
@@ -61,10 +66,10 @@ class LLM:
                 messages=messages, temperature=temp, **kwargs
             )
             logger.info(f"Response: {response.message.content}")
-            
+
             LLM._print_final_response_details(raw=response.raw)
             return response.message.content
-        
+
         initial_result = await fetch_response()
 
         if n > 1:
@@ -73,7 +78,7 @@ class LLM:
             return [initial_result] + additional_results
 
         return initial_result
-    
+
     @staticmethod
     def _print_final_response_details(raw: Dict[str, str]):
         total_duration_ns = raw.get("total_duration")
@@ -92,14 +97,16 @@ class LLM:
         Tokens per Second: {tokens_per_second:.2f} tokens/s
         """)
 
-    async def _chat_with_openai_like(self, prompt: str | ChatMessage, n: int, temp: float, **kwargs):
+    async def _chat_with_openai_like(
+        self, prompt: str | ChatMessage, n: int, temp: float, **kwargs
+    ):
         if self.llm is None:
             self.llm = OpenAILike(
                 model=settings.openai_like.model,
                 api_base=settings.openai_like.api_base,
                 api_key=settings.openai_like.api_key,
                 is_chat_model=True,
-                response_format={ "type": "json_object" },
+                response_format={"type": "json_object"},
             )
 
         async def fetch_response() -> str | List[str]:
@@ -111,7 +118,9 @@ class LLM:
             response = await self.llm.achat(
                 messages=messages, temperature=temp, n=n, **kwargs
             )
-            logger.info(f"Raw Response from OpenAI-like at temperature {temp}: {response.raw}")
+            logger.info(
+                f"Raw Response from OpenAI-like at temperature {temp}: {response.raw}"
+            )
 
             if len(response.raw.choices) == 1:
                 return response.message.content
