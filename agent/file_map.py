@@ -1,16 +1,20 @@
 import os
 import json
+import pprint
 import tree_sitter_python
 from tree_sitter import Language, Parser, Node
 from typing import List
-from agent.schema import (
+from agent.schemas import (
     FileData,
     ClassInfo,
     FunctionInfo,
     ImportInfo,
-    Expressioninfo,
+    ExpressionInfo,
     FileMapType,
 )
+from dataclasses import dataclass
+from pathlib import Path
+
 
 # Initialize languages
 LANGUAGE_MAP = {
@@ -18,59 +22,23 @@ LANGUAGE_MAP = {
 }
 
 
-class FileMap:
-    def __init__(self, file_dict: List[str] | None):
-        """
-        Initialize FileMap with a dictionary of files, classes, and functions.
+@dataclass
+class MultiFileMap:
+    file_dict: List[str]
+    output_path: Path
 
-        Args:
-            file_dict (dict[str, dict[str, list[str] | None]]): Dictionary with file paths as keys and
-                a dictionary of classes and functions as values.
-        """
-        self.file_dict = file_dict
-        self.parsers = {
-            ext: Parser(Language(lang.language())) for ext, lang in LANGUAGE_MAP.items()
-        }
-        self.function_name = None
-
-    def parse_file(self, file_path: str) -> tuple[Node, bytes]:
-        """
-        Parse a file and return the syntax tree, source code.
-
-        Args:
-            file_path (str): Path to the file to parse.
-
-        Returns:
-            tuple[Node, bytes]: Syntax tree, source code.
-        """
-        ext = os.path.splitext(file_path)[1]
-        if ext not in self.parsers:
-            raise ValueError(f"Unsupported file extension: {ext}")
-
-        with open(file_path, "r", encoding="utf-8") as file:
-            source_code = file.read().encode("utf-8")
-
-        parser = self.parsers[ext]
-        tree = parser.parse(source_code)
-        return tree, source_code
-
-    def save(self, output_path):
+    def save(self):
         """
         Generate the repository map by parsing all files in the file list and save to JSON.
-
-        Args:
-            output_path (str): Path to save the JSON file.
         """
         all_file_data: FileMapType = {}  # 用于存储所有文件的数据
 
         for file_path in self.file_dict:
-            try:
-                tree, source_code = self.parse_file(file_path)
-                file_data = self.visit_node(tree.root_node, source_code)
-                all_file_data[file_path] = file_data  # 将结果存入字典中
-
-            except Exception as e:
-                print(f"Error parsing {file_path}: {e}")
+            # 清空单个文件映射的状态
+            file_map = SingleFileMap(file_path)
+            tree, source_code = file_map.parse_file()
+            file_map.visit_node(tree.root_node, source_code)
+            all_file_data[file_path] = file_map.data
 
         # 序列化所有数据并写入 JSON 文件
         json_content = json.dumps(
@@ -79,54 +47,101 @@ class FileMap:
             indent=2,
         )
 
-        with open(output_path, "w", encoding="utf-8") as json_file:
-            json_file.write(json_content)
+        with open(self.output_path, "w", encoding="utf-8") as f:
+            f.write(json_content)
+
+
+class SingleFileMap:
+    def __init__(self, file_path: str):
+        """
+        Initialize SingleFileMap with a file path.
+
+        Args:
+            file_path (str): Path to the file to be processed.
+        """
+        self.file_path = file_path
+        self.parsers = {
+            ext: Parser(Language(lang.language())) for ext, lang in LANGUAGE_MAP.items()
+        }
+        self.data = FileData()
+
+    def parse_file(self) -> tuple[Node, bytes]:
+        """
+        Parse the file and return the syntax tree and source code.
+
+        Returns:
+            tuple[Node, bytes]: Syntax tree, source code.
+        """
+        ext = os.path.splitext(self.file_path)[1]
+        if ext not in self.parsers:
+            raise ValueError(f"Unsupported file extension: {ext}")
+
+        with open(self.file_path, "r", encoding="utf-8") as file:
+            source_code = file.read().encode("utf-8")
+
+        parser = self.parsers[ext]
+        tree = parser.parse(source_code)
+        return tree, source_code
 
     def visit_node(self, node: Node, source_code: str):
         cursor = node.walk()
-        highest_end_line = 0
-        file_data = FileData()
 
         while True:
             node_type = cursor.node.type
-            current_end_line = cursor.node.end_point[0]
 
             if node_type in [
                 "import_statement",
                 "import_from_statement",
                 "class_definition",
                 "function_definition",
+                "expression_statement",
             ]:
-                if current_end_line < highest_end_line:
-                    if not cursor.goto_next_sibling():
-                        break
-                    continue
-
                 if node_type in ["import_statement", "import_from_statement"]:
-                    file_data.imports.append(
+                    self.data.imports.append(
                         ImportInfo(
                             start_line=cursor.node.start_point[0] + 1,
-                            end_line=current_end_line + 1,
+                            end_line=cursor.node.end_point[0] + 1,
                             text=self.get_node_text(cursor.node, source_code),
                         )
                     )
-
+                elif node_type == "expression_statement":
+                    self.data.expression.append(
+                        ExpressionInfo(
+                            start_line=cursor.node.start_point[0] + 1,
+                            end_line=cursor.node.end_point[0] + 1,
+                            text=self.get_node_text(cursor.node, source_code),
+                        )
+                    )
                 elif node_type == "class_definition":
-                    class_data = self.process_class_definition(cursor.node, source_code)
-                    file_data.classes.append(class_data)
+                    self.process_class_definition(cursor.node, source_code)
 
                 elif node_type == "function_definition":
-                    self.process_function_definition(cursor.node, source_code)
+                    self.process_function_definition(
+                        cursor.node, source_code, top_level_or_not=True
+                    )
 
-                highest_end_line = current_end_line
+                # 跳过子节点，直接处理兄弟节点
+                if not cursor.goto_next_sibling():
+                    # 如果没有更多兄弟节点，返回到父节点并继续
+                    while not cursor.goto_parent():
+                        return  # 无法返回父节点，结束遍历
 
-            if cursor.goto_first_child():
-                continue
-            while not cursor.goto_next_sibling():
-                if not cursor.goto_parent():
-                    return
+                    # 继续到下一个兄弟节点
+                    if not cursor.goto_next_sibling():
+                        return  # 无法返回到兄弟节点且无法返回父节点，结束遍历
 
-        return file_data
+            else:
+                if node_type != "module":
+                    pprint.pp(
+                        f"{node_type} not supported yet, node_text:{self.get_node_text(cursor.node, source_code)}"
+                    )
+                # 处理非指定类型的节点，遍历子节点
+                if cursor.goto_first_child():
+                    continue  # 处理子节点
+                while not cursor.goto_next_sibling():
+                    # 如果没有更多兄弟节点，返回到父节点并继续
+                    if not cursor.goto_parent():
+                        return  # 无法返回到父节点，结束遍历
 
     def process_class_definition(self, class_node: Node, source_code: str):
         class_name = self.get_node_text(
@@ -146,7 +161,7 @@ class FileMap:
                 node_type = child.type
                 if node_type == "expression_statement":
                     class_info.expressions.append(
-                        Expressioninfo(
+                        ExpressionInfo(
                             start_line=child.start_point[0] + 1,
                             end_line=child.end_point[0] + 1,
                             text=self.get_node_text(child, source_code),
@@ -176,17 +191,14 @@ class FileMap:
                     )
                     class_info.functions.append(function_info)
 
-        return class_info
+        self.data.classes.append(class_info)
 
-    def process_function_definition(self, function_node: Node, source_code: str):
+    def process_function_definition(
+        self, function_node: Node, source_code: str, top_level_or_not: bool = False
+    ):
         function_name = self.get_node_text(
             function_node.child_by_field_name("name"), source_code
         )
-
-        # 检查函数是否已处理过（用于避免重复处理内容为 "pass" 的函数）
-        if function_name == self.function_name:
-            return
-        self.function_name = function_name
 
         parameters = []
         return_type = None
@@ -231,7 +243,18 @@ class FileMap:
         )
         sketch = f"{decorators_str}\n{indent_str}{async_str}def {function_name}({params_str}){return_str}"
 
-        return sketch, function_name
+        if top_level_or_not:
+            self.data.functions.append(
+                FunctionInfo(
+                    function_name=function_name,
+                    sketch=sketch,
+                    start_line=function_node.start_point[0] + 1,
+                    end_line=function_node.end_point[0] + 1,
+                    text=self.get_node_text(function_node, source_code),
+                )
+            )
+        else:
+            return sketch, function_name
 
     def get_decorators(self, node: Node, source_code: str) -> list[str]:
         """
@@ -315,5 +338,5 @@ if __name__ == "__main__":
         "agent/schemas.py",
     ]
 
-    file_map = FileMap(file_dict)
-    file_map.save("repo_structure.json")
+    file_map = MultiFileMap(file_dict, output_path="repo_structure.json")
+    file_map.save()

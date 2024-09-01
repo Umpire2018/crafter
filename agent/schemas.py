@@ -1,7 +1,8 @@
 # agent/schemas.py
-from typing import Annotated, Optional, Self
+from typing import Annotated, Optional, Self, List, Dict
 from pydantic import (
     AnyUrl,
+    Field,
     UrlConstraints,
     BaseModel,
     StringConstraints,
@@ -61,3 +62,45 @@ class RepoCloneConfig(BaseModel):
             repo_info = {"url": repo_url, "workspace_path": self.workspace_path}
 
         return repo_info
+
+
+class BasicInfo(BaseModel):
+    start_line: int
+    end_line: int
+    text: str
+
+
+class ExpressionInfo(BasicInfo):
+    pass
+
+
+class FunctionInfo(BasicInfo):
+    """Model to represent function information."""
+
+    function_name: str
+    sketch: str
+
+
+class ClassInfo(BaseModel):
+    """Model to represent class information."""
+
+    class_name: str
+    class_decorators: List[str] = Field(default_factory=list)
+    expressions: List[ExpressionInfo] = Field(default_factory=list)
+    functions: List[FunctionInfo] = Field(default_factory=list)
+
+
+class ImportInfo(BasicInfo):
+    pass
+
+
+class FileData(BaseModel):
+    """Model to represent file data."""
+
+    imports: List[ImportInfo] = Field(default_factory=list)
+    classes: List[ClassInfo] = Field(default_factory=list)
+    expression: List[ExpressionInfo] = Field(default_factory=list)
+    functions: List[FunctionInfo] = Field(default_factory=list)
+
+
+FileMapType = Dict[str, FileData]

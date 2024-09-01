@@ -563,11 +563,10 @@ if __name__ == "__main__":
         # "./RepoAgent/repo_agent/doc_meta_info.py",
         # "./RepoAgent/repo_agent/runner.py",
         # "./RepoAgent/repo_agent/utils/meta_info_utils.py",
-        "./RepoAgent/repo_agent/exceptions.py",
+        # "./RepoAgent/repo_agent/exceptions.py",
         # "./RepoAgent/repo_agent/settings.py",
-        # "agent/test.py",
+        "agent/schemas.py",
     ]
 
     file_map = FileMap(file_dict)
     file_map.generate_file_map()
-    file_map.save_to_json("repo_structure.json")
