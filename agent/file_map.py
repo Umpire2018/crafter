@@ -9,6 +9,7 @@ from agent.schemas import (
     ClassInfo,
     FunctionInfo,
     ImportInfo,
+    TopLevelInfo,
     ExpressionInfo,
     FileMapType,
 )
@@ -95,6 +96,7 @@ class SingleFileMap:
                 "class_definition",
                 "function_definition",
                 "expression_statement",
+                "if_statement",
             ]:
                 if node_type in ["import_statement", "import_from_statement"]:
                     self.data.imports.append(
@@ -104,9 +106,9 @@ class SingleFileMap:
                             text=self.get_node_text(cursor.node, source_code),
                         )
                     )
-                elif node_type == "expression_statement":
-                    self.data.expression.append(
-                        ExpressionInfo(
+                elif node_type in ["expression_statement", "if_statement"]:
+                    self.data.top_level.append(
+                        TopLevelInfo(
                             start_line=cursor.node.start_point[0] + 1,
                             end_line=cursor.node.end_point[0] + 1,
                             text=self.get_node_text(cursor.node, source_code),
@@ -131,7 +133,7 @@ class SingleFileMap:
                         return  # 无法返回到兄弟节点且无法返回父节点，结束遍历
 
             else:
-                if node_type != "module":
+                if node_type not in ["module", "decorator", "decorated_definition"]:
                     pprint.pp(
                         f"{node_type} not supported yet, node_text:{self.get_node_text(cursor.node, source_code)}"
                     )
@@ -144,14 +146,37 @@ class SingleFileMap:
                         return  # 无法返回到父节点，结束遍历
 
     def process_class_definition(self, class_node: Node, source_code: str):
-        class_name = self.get_node_text(
-            class_node.child_by_field_name("name"), source_code
-        )
+        # 获取类名节点
+        class_name_node = class_node.child_by_field_name("name")
 
+        # 获取继承信息的 argument_list 节点
+        superclass_node = class_node.child_by_field_name("superclasses")
+
+        # 获取初始类名
+        initial_class_name = self.get_node_text(class_name_node, source_code)
+
+        # 检查并处理继承信息
+        if superclass_node:
+            # 初始化一个空列表来存储所有继承类的名字
+            superclass_names = []
+            # 遍历 argument_list 节点的所有子节点
+            for child in superclass_node.children:
+                if child.type == "identifier":
+                    # 获取每个继承类的名字
+                    superclass_name = self.get_node_text(child, source_code)
+                    superclass_names.append(superclass_name)
+
+            # 拼接类名和继承信息
+            final_class_name = f"{initial_class_name}({', '.join(superclass_names)})"
+        else:
+            final_class_name = initial_class_name
+
+        # 获取类的装饰器
         class_decorators = self.get_decorators(class_node, source_code)
 
+        # 创建 ClassInfo 对象
         class_info = ClassInfo(
-            class_name=class_name,
+            class_name=final_class_name,
             class_decorators=class_decorators,
         )
 
@@ -196,52 +221,96 @@ class SingleFileMap:
     def process_function_definition(
         self, function_node: Node, source_code: str, top_level_or_not: bool = False
     ):
+        # Helper function to get docstring and comments
+        def get_docstring_and_comments():
+            # Extract the docstring from the function body
+            body_node = function_node.child_by_field_name("body")
+            docstring = None
+            if body_node and body_node.child_count > 0:
+                first_statement = body_node.child(0)
+                if (
+                    first_statement.type == "expression_statement"
+                    and first_statement.child(0).type == "string"
+                ):
+                    docstring = self.get_node_text(
+                        first_statement.child(0), source_code
+                    )
+
+            # Extract comments before the function definition
+            comments = []
+            for i in range(function_node.start_byte - 1, 0, -1):
+                node = function_node.descendant_for_byte_range(i, i + 1)
+                if node and node.type == "comment":
+                    comments.insert(0, self.get_node_text(node, source_code))
+                elif node and node.type != "comment":
+                    break
+            return docstring, comments
+
+        # Helper function to process function parameters
+        def process_parameters():
+            parameters = []
+            param_node = function_node.child_by_field_name("parameters")
+            if param_node:
+                for param in param_node.children:
+                    param_name = None
+                    param_type = None
+
+                    if param.type == "identifier" and not param.children:
+                        param_name = self.get_node_text(param, source_code)
+                        parameters.append((param_name, param_type))
+                    elif param.type == "typed_parameter":
+                        for child in param.children:
+                            if child.type == "identifier":
+                                param_name = self.get_node_text(child, source_code)
+                            elif child.type == "type":
+                                param_type = self.get_node_text(child, source_code)
+                        if param_name:
+                            parameters.append((param_name, param_type))
+            return parameters
+
+        # Helper function to process the return type
+        def process_return_type():
+            return_type_node = function_node.child_by_field_name("return_type")
+            return (
+                self.get_node_text(return_type_node, source_code)
+                if return_type_node
+                else None
+            )
+
+        # Get function name
         function_name = self.get_node_text(
             function_node.child_by_field_name("name"), source_code
         )
 
-        parameters = []
-        return_type = None
-        param_node = function_node.child_by_field_name("parameters")
-        if param_node:
-            for param in param_node.children:
-                param_name = None
-                param_type = None
+        # Get docstring and comments
+        docstring, comments = get_docstring_and_comments()
 
-                if param.type == "identifier" and not param.children:
-                    param_name = self.get_node_text(param, source_code)
-                    parameters.append((param_name, param_type))
-                elif param.type == "typed_parameter":
-                    for child in param.children:
-                        if child.type == "identifier":
-                            param_name = self.get_node_text(child, source_code)
-                        elif child.type == "type":
-                            param_type = self.get_node_text(child, source_code)
-                    if param_name:
-                        parameters.append((param_name, param_type))
+        # Process function parameters and return type
+        parameters = process_parameters()
+        return_type = process_return_type()
 
-        return_type_node = function_node.child_by_field_name("return_type")
-        if return_type_node:
-            return_type = self.get_node_text(return_type_node, source_code)
-
+        # Get decorators
         decorators = self.get_decorators(function_node, source_code)
 
-        # 检查函数是否为异步
+        # Check if the function is asynchronous
         is_async = any(child.type == "async" for child in function_node.children)
 
-        # 构建 sketch
-        indent_str = " " * 2
+        # Build sketch
         async_str = "async " if is_async else ""
         params_str = ", ".join(
             [f"{name}: {ptype}" if ptype else name for name, ptype in parameters]
         )
         return_str = f" -> {return_type}" if return_type else ""
         decorators_str = (
-            "\n".join(f"{indent_str}{decorator}" for decorator in decorators)
+            "\n".join(f"{decorator}" for decorator in decorators) + "\n"
             if decorators
             else ""
         )
-        sketch = f"{decorators_str}\n{indent_str}{async_str}def {function_name}({params_str}){return_str}"
+        comments_str = "\n".join(comments) + "\n" if comments else ""
+        docstring_str = f'\n    """{docstring}"""' if docstring else ""
+
+        # Combine everything into the final sketch
+        sketch = f"{comments_str}{decorators_str}{async_str}def {function_name}({params_str}){return_str}{docstring_str}"
 
         if top_level_or_not:
             self.data.functions.append(
@@ -335,7 +404,7 @@ if __name__ == "__main__":
         # "./RepoAgent/repo_agent/utils/meta_info_utils.py",
         # "./RepoAgent/repo_agent/exceptions.py",
         # "./RepoAgent/repo_agent/settings.py",
-        "agent/schemas.py",
+        "agent/file_map.py",
     ]
 
     file_map = MultiFileMap(file_dict, output_path="repo_structure.json")

@@ -74,6 +74,10 @@ class ExpressionInfo(BasicInfo):
     pass
 
 
+class TopLevelInfo(BasicInfo):
+    pass
+
+
 class FunctionInfo(BasicInfo):
     """Model to represent function information."""
 
@@ -99,7 +103,7 @@ class FileData(BaseModel):
 
     imports: List[ImportInfo] = Field(default_factory=list)
     classes: List[ClassInfo] = Field(default_factory=list)
-    expression: List[ExpressionInfo] = Field(default_factory=list)
+    top_level: List[TopLevelInfo] = Field(default_factory=list)
     functions: List[FunctionInfo] = Field(default_factory=list)
 
 

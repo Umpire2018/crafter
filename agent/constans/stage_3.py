@@ -13,7 +13,8 @@ review_issue_to_locate_edit_position_prompt_str = (
     "- Provide your output in JSON format for clarity.\n"
     "Details to Include:\n"
     "- Line Numbers: The range of lines where the class, method, or function is located.\n"
-    "Note: Precision in identifying the necessary edits is crucial as it directly influences the effectiveness and efficiency of the solution.\n"
+    "Note:\n"
+    "Precision in identifying the necessary edits is crucial as it directly influences the effectiveness and efficiency of the solution.\n"
 )
 
 
