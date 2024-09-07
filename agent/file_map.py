@@ -12,6 +12,7 @@ from agent.schemas import (
     TopLevelInfo,
     ExpressionInfo,
     FileMapType,
+    DecoratorInfo,
 )
 from dataclasses import dataclass
 from pathlib import Path
@@ -178,6 +179,10 @@ class SingleFileMap:
         class_info = ClassInfo(
             class_name=final_class_name,
             class_decorators=class_decorators,
+            start_line=class_decorators[-1].end_line + 1
+            if class_decorators
+            else class_name_node.start_point[0] + 1,
+            end_line=class_node.end_point[0] + 1,
         )
 
         body_node = class_node.child_by_field_name("body")
@@ -289,8 +294,15 @@ class SingleFileMap:
         parameters = process_parameters()
         return_type = process_return_type()
 
-        # Get decorators
-        decorators = self.get_decorators(function_node, source_code)
+        # Get decorators (using DecoratorInfo model)
+        decorators_info = self.get_decorators(function_node, source_code)
+        # Extract decorator names
+        decorators_str = (
+            "\n".join(f"{decorator.decorator_name}" for decorator in decorators_info)
+            + "\n"
+            if decorators_info
+            else ""
+        )
 
         # Check if the function is asynchronous
         is_async = any(child.type == "async" for child in function_node.children)
@@ -301,11 +313,6 @@ class SingleFileMap:
             [f"{name}: {ptype}" if ptype else name for name, ptype in parameters]
         )
         return_str = f" -> {return_type}" if return_type else ""
-        decorators_str = (
-            "\n".join(f"{decorator}" for decorator in decorators) + "\n"
-            if decorators
-            else ""
-        )
         comments_str = "\n".join(comments) + "\n" if comments else ""
         docstring_str = f'\n    """{docstring}"""' if docstring else ""
 
@@ -325,7 +332,7 @@ class SingleFileMap:
         else:
             return sketch, function_name
 
-    def get_decorators(self, node: Node, source_code: str) -> list[str]:
+    def get_decorators(self, node: Node, source_code: str) -> list[DecoratorInfo]:
         """
         Get the decorators of a class or function.
 
@@ -334,7 +341,7 @@ class SingleFileMap:
             source_code (str): The source code of the file.
 
         Returns:
-            list[str]: List of decorators.
+            list[DecoratorInfo]: List of DecoratorInfo objects with name and line numbers.
         """
         decorators = []
         if node.type == "decorated_definition":
@@ -342,14 +349,26 @@ class SingleFileMap:
             for child in node.children:
                 if child.type == "decorator":
                     decorator_text = self.get_node_text(child, source_code)
-                    decorators.append(decorator_text)
+                    decorators.append(
+                        DecoratorInfo(
+                            decorator_name=decorator_text,
+                            start_line=child.start_point[0] + 1,
+                            end_line=child.end_point[0] + 1,
+                        )
+                    )
         else:
             # Traverse previous siblings to find decorators for class
             current_node = node.prev_named_sibling
             while current_node:
                 if current_node.type == "decorator":
                     decorator_text = self.get_node_text(current_node, source_code)
-                    decorators.append(decorator_text)
+                    decorators.append(
+                        DecoratorInfo(
+                            decorator_name=decorator_text,
+                            start_line=current_node.start_point[0] + 1,
+                            end_line=current_node.end_point[0] + 1,
+                        )
+                    )
                 current_node = current_node.prev_named_sibling
             decorators.reverse()  # Reverse to maintain the correct order
 
@@ -399,11 +418,11 @@ class SingleFileMap:
 if __name__ == "__main__":
     # Example file list with classes and methods to filter
     file_dict = [
-        # "./RepoAgent/repo_agent/doc_meta_info.py",
-        # "./RepoAgent/repo_agent/runner.py",
-        # "./RepoAgent/repo_agent/utils/meta_info_utils.py",
-        # "./RepoAgent/repo_agent/exceptions.py",
-        # "./RepoAgent/repo_agent/settings.py",
+        "./RepoAgent/repo_agent/doc_meta_info.py",
+        "./RepoAgent/repo_agent/runner.py",
+        "./RepoAgent/repo_agent/utils/meta_info_utils.py",
+        "./RepoAgent/repo_agent/exceptions.py",
+        "./RepoAgent/repo_agent/settings.py",
         "agent/file_map.py",
     ]
 

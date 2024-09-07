@@ -25,19 +25,15 @@ test_review_issue_with_file_structure = """We are working on resolving a specifi
 Task: Thoroughly review the GitHub issue description for the repository named RepoAgent. Based on the file structure provided, identify and select the functions or classes that you think need editing. Return the selected functions or classes in the following JSON format:
 
 {
-  "files": [
-        {
-        "file_path": "path/to/file.py",
+"path/to/file.py":
         "classes": [
                 {
                 "class_name": "ClassName",
-                "methods": [
-                        {"method_name": "methodName"},
+                "functions": [
+                        {"function_name": "functionName"},
                     ]
                 },
             ]
-        }
-    ]
 }
 
 Details to Include:

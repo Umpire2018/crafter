@@ -64,9 +64,12 @@ class RepoCloneConfig(BaseModel):
         return repo_info
 
 
-class BasicInfo(BaseModel):
+class LineInfo(BaseModel):
     start_line: int
     end_line: int
+
+
+class BasicInfo(LineInfo):
     text: str
 
 
@@ -85,11 +88,15 @@ class FunctionInfo(BasicInfo):
     sketch: str
 
 
-class ClassInfo(BaseModel):
+class DecoratorInfo(LineInfo):
+    decorator_name: str
+
+
+class ClassInfo(LineInfo):
     """Model to represent class information."""
 
     class_name: str
-    class_decorators: List[str] = Field(default_factory=list)
+    class_decorators: List[DecoratorInfo] = Field(default_factory=list)
     expressions: List[ExpressionInfo] = Field(default_factory=list)
     functions: List[FunctionInfo] = Field(default_factory=list)
 
@@ -108,3 +115,19 @@ class FileData(BaseModel):
 
 
 FileMapType = Dict[str, FileData]
+
+
+class SimpleFunctionInfo(BaseModel):
+    function_name: str
+
+
+class SimpleClassInfo(BaseModel):
+    class_name: str
+    functions: List[SimpleFunctionInfo]
+
+
+class SimpleFileData(BaseModel):
+    classes: List[SimpleClassInfo] = Field(default_factory=list)
+
+
+SimpleFileMapType = Dict[str, SimpleFileData]
