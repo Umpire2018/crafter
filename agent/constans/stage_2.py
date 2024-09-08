@@ -7,7 +7,7 @@ review_issue_with_file_structure_prompt_str = (
     "{github_issue_description}\n"
     "### Relevant files and their structure\n"
     "{relevant_files_structure}\n"
-    "Return the selected functions or classes in the following JSON format:\n"
+    "### Return the selected functions or classes in the following JSON format:\n"
     "{'files':[{'file_path':'path/to/file.py','classes':[{'class_name':'ClassName','methods':[{'method_name':'methodName'}]}],'variables':[{'variable_name':'variableName'}]}]}\n"
     "Details to Include:\n"
     "- File Path: The path of the file where the function or class is located.\n"
@@ -26,14 +26,14 @@ Task: Thoroughly review the GitHub issue description for the repository named Re
 
 {
 "path/to/file.py":
-        "classes": [
-                {
-                "class_name": "ClassName",
-                "functions": [
-                        {"function_name": "functionName"},
-                    ]
-                },
-            ]
+  "classes": [
+    {
+    "class_name": "ClassName",
+    "functions": [
+            {"function_name": "functionName"},
+        ]
+    },
+  ]
 }
 
 Details to Include:

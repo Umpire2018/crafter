@@ -22,25 +22,31 @@ class FileRestorer:
         }
         self.indent = " " * indent  # Set indentation, default is 2 spaces
 
-    def restore_all_files(self, process_first_only: bool = True) -> str:
+    def restore_all_files(self, process_first_only: bool = False) -> str:
         """Restore file contents. If process_first_only is True, only process the first file."""
-        all_lines = []
-        file_headers = []
+        all_file_contents = []  # Store contents of all files
 
         # Use enumerate to iterate over the file paths and their respective data
         for index, (file_path, file_data) in enumerate(self.repo_structure.items()):
             if process_first_only and index > 0:
                 break  # Only process the first file, exit the loop
 
-            # Add file header with indentation
-            file_headers.append(f"# 文件: {file_path}\n")  # Add file identifier
             # Process the current file
             file_lines = self._restore_single_file(file_data)
-            all_lines.extend(file_lines)
 
-        # Sort lines by line number, ignoring file headers
-        all_lines.sort(key=lambda x: int(x.split(":")[0]))  # Sort lines by line number
-        return "\n".join(file_headers + all_lines)
+            # 对当前文件的行进行排序（根据行号）
+            file_lines.sort(
+                key=lambda x: int(x.split(":")[0])
+            )  # Sort lines by line number
+
+            # Add file header with indentation
+            file_header = f"# 文件: {file_path}\n"  # Add file identifier
+
+            # Combine file header with its sorted content and add to all_file_contents
+            all_file_contents.append(file_header + "\n".join(file_lines))
+
+        # Join all file contents with separator between each file
+        return "\n\n".join(all_file_contents)
 
     def _restore_single_file(self, file_data: FileData) -> List[str]:
         """Restore the content of a single file and return a list of lines with line numbers."""

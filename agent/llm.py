@@ -119,7 +119,7 @@ class LLM:
                 messages=messages, temperature=temp, n=n, **kwargs
             )
             logger.info(
-                f"Raw Response from OpenAI-like at temperature {temp}: {response.raw}"
+                f"Request parameters: temperature={temp}, prompt_tokens={response.raw.usage.prompt_tokens}. Response parameters: completion_tokens={response.raw.usage.completion_tokens}"
             )
 
             if len(response.raw.choices) == 1:
