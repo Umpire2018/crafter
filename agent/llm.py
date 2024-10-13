@@ -26,14 +26,22 @@ class LLM:
 
     async def chat(self, prompt: str | ChatMessage, **kwargs):
         if self.ollama_is_reachable is None:
-            self.ollama_is_reachable = await is_url_reachable(settings.ollama.base_url)
-            if self.ollama_is_reachable:
-                logger.success(f"Using Ollama Endpoint.")
-            else:
+            try:
+                self.ollama_is_reachable = await is_url_reachable(
+                    settings.ollama.base_url
+                )
+                if self.ollama_is_reachable:
+                    logger.success(f"Using Ollama Endpoint.")
+                else:
+                    logger.success(f"Using OpenAILike Endpoint.")
+            except AttributeError:
                 logger.success(f"Using OpenAILike Endpoint.")
+                self.ollama_is_reachable = False
 
+        # 回答输出个数
         n = kwargs.pop("n", 1)  # Extract 'n' from kwargs, default to 1 if not provided
-        temperature = 0 if n == 1 else 0.8
+        # 采样温度，控制输出的随机性，必须为正数取值范围是：[0.0, 1.0]，GLM默认值为0.95。
+        temperature = 0 if n == 1 else settings.llm.openai_like.temperature
 
         if self.ollama_is_reachable:
             return await self._chat_with_ollama(
@@ -102,9 +110,9 @@ class LLM:
     ):
         if self.llm is None:
             self.llm = OpenAILike(
-                model=settings.openai_like.model,
-                api_base=settings.openai_like.api_base,
-                api_key=settings.openai_like.api_key,
+                model=settings.llm.openai_like.model,
+                api_base=settings.llm.openai_like.api_base,
+                api_key=settings.secrets.api_key,
                 is_chat_model=True,
                 response_format={"type": "json_object"},
             )
@@ -115,8 +123,11 @@ class LLM:
             else:
                 messages = prompt
 
+            # 模型输出的最大token数，GLM最大输出为4095，默认值为1024。
+            max_tokens = kwargs.pop("max_tokens", settings.llm.openai_like.max_tokens)
+
             response = await self.llm.achat(
-                messages=messages, temperature=temp, n=n, **kwargs
+                messages=messages, temperature=temp, n=n, max_tokens=max_tokens, **kwargs
             )
             logger.info(
                 f"Request parameters: temperature={temp}, prompt_tokens={response.raw.usage.prompt_tokens}. Response parameters: completion_tokens={response.raw.usage.completion_tokens}"

@@ -5,14 +5,14 @@
 1. Create `.secrets.toml` with any kwargs you need
 
 ```toml
-[default]
+[default.secrets]
 api_key = ""
 ```
 
 2. Create `settings.toml` with any kwargs you need
 
 ```toml
-[default]
+[default.llm.openai_like]
 model = ""
 ```
 

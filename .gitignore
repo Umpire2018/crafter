@@ -194,3 +194,4 @@ RepoAgent
 test.py
 database/
 *.sqlite3
+settings.toml

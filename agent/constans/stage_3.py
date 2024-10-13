@@ -37,3 +37,50 @@ review_issue_to_locate_edit_position_prompt_str = (
 review_issue_to_locate_edit_position_template = PromptTemplate(
     review_issue_to_locate_edit_position_prompt_str
 )
+
+test_review_issue_to_locate_edit_position_output = """
+```json
+{
+  "files": [
+    {
+      "file_name": "./RepoAgent/repo_agent/doc_meta_info.py",
+      "edits": [
+        {
+          "reason": "The recursive function `check_depth` is causing a maximum recursion depth exceeded error due to infinite recursion. This is likely caused by the `__eq__` method being called recursively without a base case.",
+          "line_numbers": {
+            "start": 158,
+            "end": 173
+          }
+        },
+        {
+          "reason": "The `__eq__` method is being called recursively without a base case, which is causing the maximum recursion depth exceeded error. This method should include a base case to prevent infinite recursion.",
+          "line_numbers": {
+            "start": 4,
+            "end": 4
+          }
+        }
+      ]
+    },
+    {
+      "file_name": "./RepoAgent/repo_agent/runner.py",
+      "edits": [
+        {
+          "reason": "The `first_generate` method is calling `get_topology` which in turn calls `get_task_manager` which uses the `__eq__` method of `DocItem`. This method should be modified to prevent infinite recursion.",
+          "line_numbers": {
+            "start": 105,
+            "end": 108
+          }
+        },
+        {
+          "reason": "The `run` method is calling `get_task_manager` which uses the `__eq__` method of `DocItem`. This method should be modified to prevent infinite recursion.",
+          "line_numbers": {
+            "start": 269,
+            "end": 272
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+"""

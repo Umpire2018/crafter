@@ -13,7 +13,6 @@ from agent.schemas import (
 from pydantic import FilePath
 
 
-# 使用你定义的 Pydantic 模型
 class RepoStructureProcessor:
     def __init__(self, repo_structure_path: FilePath):
         """
@@ -108,43 +107,43 @@ class RepoStructureProcessor:
         return matched_functions
 
 
-# 初始化处理器时加载 repo_structure.json
-processor = RepoStructureProcessor(repo_structure_path="./repo_structure.json")
-
-input_json_data = {
-    "./RepoAgent/repo_agent/doc_meta_info.py": {
-        "classes": [
-            {
-                "class_name": "DocItem",
-                "functions": [
-                    {"function_name": "check_depth"},
-                    {"function_name": "parse_tree_path"},
-                    {"function_name": "get_file_name"},
-                    {"function_name": "get_full_name"},
-                    {"function_name": "find"},
-                    {"function_name": "print_recursive"},
-                ],
-            },
-            {
-                "class_name": "MetaInfo",
-                "functions": [{"function_name": "get_topology"}],
-            },
-        ]
-    },
-    "./RepoAgent/repo_agent/runner.py": {
-        "classes": [
-            {
-                "class_name": "Runner",
-                "functions": [
-                    {"function_name": "first_generate"},
-                    {"function_name": "run"},
-                ],
-            }
-        ]
-    },
-}
-
 if __name__ == "__main__":
+    # 初始化处理器时加载 repo_structure.json
+    processor = RepoStructureProcessor(repo_structure_path="./repo_structure.json")
+
+    input_json_data = {
+        "./RepoAgent/repo_agent/doc_meta_info.py": {
+            "classes": [
+                {
+                    "class_name": "DocItem",
+                    "functions": [
+                        {"function_name": "check_depth"},
+                        {"function_name": "parse_tree_path"},
+                        {"function_name": "get_file_name"},
+                        {"function_name": "get_full_name"},
+                        {"function_name": "find"},
+                        {"function_name": "print_recursive"},
+                    ],
+                },
+                {
+                    "class_name": "MetaInfo",
+                    "functions": [{"function_name": "get_topology"}],
+                },
+            ]
+        },
+        "./RepoAgent/repo_agent/runner.py": {
+            "classes": [
+                {
+                    "class_name": "Runner",
+                    "functions": [
+                        {"function_name": "first_generate"},
+                        {"function_name": "run"},
+                    ],
+                }
+            ]
+        },
+    }
+
     # 提取相关的类方法文本信息并返回符合条件的 JSON 块
     result = processor.extract_class_methods(input_json_data)
 

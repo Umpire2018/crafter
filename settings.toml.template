@@ -4,9 +4,9 @@
 # Configuration for LLM models (group name starts with 'default.llm')
 ##############################################################################
 
-[default.llm]
+[default.llm.openai_like]
 # API base URL
-#base_url = ""
+#api_base = ""
 
 # API version
 #api_version = ""
@@ -16,6 +16,7 @@
 
 # Model to use
 model = "gpt-4o"
+max_tokens = 2048
 
 # Number of retries to attempt
 #num_retries = 5
@@ -27,7 +28,7 @@ model = "gpt-4o"
 #retry_min_wait = 3
 
 # Temperature for the API
-#temperature = 0.0
+temperature = 0.8
 
 # Timeout for the API
 #timeout = 0
