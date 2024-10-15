@@ -39,7 +39,6 @@ review_issue_to_locate_edit_position_template = PromptTemplate(
 )
 
 test_review_issue_to_locate_edit_position_output = """
-```json
 {
   "files": [
     {
@@ -82,5 +81,4 @@ test_review_issue_to_locate_edit_position_output = """
     }
   ]
 }
-```
 """

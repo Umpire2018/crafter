@@ -1,5 +1,6 @@
 import httpx
 import asyncio
+import json
 from typing import List, Dict
 from loguru import logger
 from llama_index.core.llms.function_calling import FunctionCallingLLM
@@ -105,6 +106,20 @@ class LLM:
         Tokens per Second: {tokens_per_second:.2f} tokens/s
         """)
 
+    def parse_json_string(self, json_str: str):
+        """
+        Clean the input JSON string, remove unnecessary backticks and return the cleaned string.
+        """
+        json_str = json_str.strip()
+        if json_str.startswith("```json"):
+            json_str = json_str[len("```json"):].strip()
+        if json_str.endswith("```"):
+            json_str = json_str[:-len("```")].strip()
+
+        logger.info(f"json_str:\n{json_str}")
+
+        return json_str
+        
     async def _chat_with_openai_like(
         self, prompt: str | ChatMessage, n: int, temp: float, **kwargs
     ):
@@ -114,7 +129,6 @@ class LLM:
                 api_base=settings.llm.openai_like.api_base,
                 api_key=settings.secrets.api_key,
                 is_chat_model=True,
-                response_format={"type": "json_object"},
             )
 
         async def fetch_response() -> str | List[str]:
@@ -134,9 +148,9 @@ class LLM:
             )
 
             if len(response.raw.choices) == 1:
-                return response.message.content
+                return self.parse_json_string(response.message.content)
 
-            return [str(choice.message.content) for choice in response.raw.choices]
+            return [self.parse_json_string(choice.message.content) for choice in response.raw.choices]
 
         initial_result = await fetch_response()
 

@@ -4,7 +4,7 @@ from llama_index.core import PromptTemplate
 # 1. 可能出现文件不在目标仓库
 # 2. 文件路径为以目标仓库开头，如 ./repo_agent/runners/__init__.py 而不是 ./RepoAgent/repo_agent/__init__.py
 review_issue_with_file_structure_prompt_str = (
-    "We are working on resolving a specific issue described in the GitHub issue for the repository named {target_repository_name} which main languages is python. "
+    "We are working on resolving a specific issue described in the GitHub issue for the repository named {target_repository_name} which main languages is {target_repository_language}. "
     "From the tree structure, select five files that you believe can assist in resolving the issue. \n"
     "### GitHub Issue Description\n"
     "{github_issue_description}\n"
