@@ -20,6 +20,8 @@ async def start():
     response = await llm.chat(prompt=review_issue_to_locate_edit_position_message, n=4)
     print(response)
 
+
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(start())

@@ -14,15 +14,15 @@ review_issue_to_locate_edit_position_prompt_str = (
     "- Make sure your response is wrapped in triple backticks ```json and ends with ``` without additional content outside this block.\n"
     "### Desired JSON Output Format:\n"
     "{{\n"
-    "  \"files\": [\n"
+    '  "files": [\n'
     "    {{\n"
-    "      \"file_name\": \"relative/path/to/file.py\",\n"
-    "      \"edits\": [\n"
+    '      "file_name": "relative/path/to/file.py",\n'
+    '      "edits": [\n'
     "        {{\n"
-    "          \"reason\": \"Brief explanation of why this part of the code needs to be modified.\",\n"
-    "          \"line_numbers\": {{\n"
-    "            \"start\": line_number_start,\n"
-    "            \"end\": line_number_end\n"
+    '          "reason": "Brief explanation of why this part of the code needs to be modified.",\n'
+    '          "line_numbers": {{\n'
+    '            "start": line_number_start,\n'
+    '            "end": line_number_end\n'
     "          }}\n"
     "        }}\n"
     "      ]\n"

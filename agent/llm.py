@@ -112,14 +112,14 @@ class LLM:
         """
         json_str = json_str.strip()
         if json_str.startswith("```json"):
-            json_str = json_str[len("```json"):].strip()
+            json_str = json_str[len("```json") :].strip()
         if json_str.endswith("```"):
-            json_str = json_str[:-len("```")].strip()
+            json_str = json_str[: -len("```")].strip()
 
-        logger.info(f"json_str:\n{json_str}")
+        # logger.info(f"json_str:\n{json_str}")
 
         return json_str
-        
+
     async def _chat_with_openai_like(
         self, prompt: str | ChatMessage, n: int, temp: float, **kwargs
     ):
@@ -141,7 +141,11 @@ class LLM:
             max_tokens = kwargs.pop("max_tokens", settings.llm.openai_like.max_tokens)
 
             response = await self.llm.achat(
-                messages=messages, temperature=temp, n=n, max_tokens=max_tokens, **kwargs
+                messages=messages,
+                temperature=temp,
+                n=n,
+                max_tokens=max_tokens,
+                **kwargs,
             )
             logger.info(
                 f"Request parameters: temperature={temp}, prompt_tokens={response.raw.usage.prompt_tokens}. Response parameters: completion_tokens={response.raw.usage.completion_tokens}"
@@ -150,7 +154,10 @@ class LLM:
             if len(response.raw.choices) == 1:
                 return self.parse_json_string(response.message.content)
 
-            return [self.parse_json_string(choice.message.content) for choice in response.raw.choices]
+            return [
+                self.parse_json_string(choice.message.content)
+                for choice in response.raw.choices
+            ]
 
         initial_result = await fetch_response()
 
