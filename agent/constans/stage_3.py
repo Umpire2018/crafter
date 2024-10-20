@@ -21,8 +21,8 @@ review_issue_to_locate_edit_position_prompt_str = (
     "        {{\n"
     '          "reason": "Brief explanation of why this part of the code needs to be modified.",\n'
     '          "line_numbers": {{\n'
-    '            "start": line_number_start,\n'
-    '            "end": line_number_end\n'
+    '            "start_line": line_number_start,\n'
+    '            "end_line": line_number_end\n'
     "          }}\n"
     "        }}\n"
     "      ]\n"
@@ -47,15 +47,8 @@ test_review_issue_to_locate_edit_position_output = """
         {
           "reason": "The recursive function `check_depth` is causing a maximum recursion depth exceeded error due to infinite recursion. This is likely caused by the `__eq__` method being called recursively without a base case.",
           "line_numbers": {
-            "start": 158,
-            "end": 173
-          }
-        },
-        {
-          "reason": "The `__eq__` method is being called recursively without a base case, which is causing the maximum recursion depth exceeded error. This method should include a base case to prevent infinite recursion.",
-          "line_numbers": {
-            "start": 4,
-            "end": 4
+            "start_line": 158,
+            "end_line": 173
           }
         }
       ]
@@ -66,15 +59,15 @@ test_review_issue_to_locate_edit_position_output = """
         {
           "reason": "The `first_generate` method is calling `get_topology` which in turn calls `get_task_manager` which uses the `__eq__` method of `DocItem`. This method should be modified to prevent infinite recursion.",
           "line_numbers": {
-            "start": 105,
-            "end": 108
+            "start_line": 105,
+            "end_line": 108
           }
         },
         {
           "reason": "The `run` method is calling `get_task_manager` which uses the `__eq__` method of `DocItem`. This method should be modified to prevent infinite recursion.",
           "line_numbers": {
-            "start": 269,
-            "end": 272
+            "start_line": 269,
+            "end_line": 272
           }
         }
       ]

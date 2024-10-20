@@ -86,6 +86,7 @@ class FunctionInfo(BasicInfo):
 
     function_name: str
     sketch: str
+    trimmed_code_start_line: Optional[int] = None  # 新增字段
 
 
 class DecoratorInfo(LineInfo):
@@ -131,3 +132,16 @@ class SimpleFileData(BaseModel):
 
 
 SimpleFileMapType = Dict[str, SimpleFileData]
+
+
+class Edit(BaseModel):
+    line_numbers: LineInfo
+
+
+class FileEdits(BaseModel):
+    file_name: str
+    edits: List[Edit]
+
+
+class FilesEdit(BaseModel):
+    files: List[FileEdits]
