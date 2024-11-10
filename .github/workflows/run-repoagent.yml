@@ -1,0 +1,26 @@
+name: Use RepoAgent Action
+
+on:
+  workflow_dispatch:
+    branches:
+      - test-action
+  push:
+    branches:
+      - test-action
+      
+permissions:
+  contents: write  # Enable write access to push changes
+  
+jobs:
+  use-repoagent:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+
+      - name: Run RepoAgent Action
+        uses: Umpire2018/setup-repoagent@v1
+        with:
+          openai_base_url: "${{ secrets.OPENAI_BASE_URL }}"
+          openai_api_key: "${{ secrets.OPENAI_API_KEY }}"
