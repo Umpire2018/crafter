@@ -16,18 +16,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout main repository
+        uses: actions/checkout@v4
 
-      - name: Pull and run RepoAgent Docker image
-        run: |
-          docker pull ghcr.io/umpire2018/setup-repoagent:main
-          docker run --rm \
-            -e OPENAI_BASE_URL=${{ secrets.OPENAI_BASE_URL }} \
-            -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
-            -v "${{ github.workspace }}:/workspace" \
-            ghcr.io/umpire2018/setup-repoagent:main
+      - name: Run RepoAgent Action
+        uses: Umpire2018/setup-repoagent@v1.2
+        with:
+          openai_base_url: "${{ secrets.OPENAI_BASE_URL }}"
+          openai_api_key: "${{ secrets.OPENAI_API_KEY }}"
