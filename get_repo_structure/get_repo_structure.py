@@ -156,37 +156,5 @@ def parse_python_file(file_path, file_content=None):
 
     return class_info, function_names, file_content.splitlines()
 
-
-def create_structure(directory_path):
-    """Create the structure of the repository directory by parsing Python files.
-    :param directory_path: Path to the repository directory.
-    :return: A dictionary representing the structure.
-    """
-    structure = {}
-
-    for root, _, files in os.walk(directory_path):
-        repo_name = os.path.basename(directory_path)
-        relative_root = os.path.relpath(root, directory_path)
-        if relative_root == ".":
-            relative_root = repo_name
-        curr_struct = structure
-        for part in relative_root.split(os.sep):
-            if part not in curr_struct:
-                curr_struct[part] = {}
-            curr_struct = curr_struct[part]
-        for file_name in files:
-            if file_name.endswith(".py"):
-                file_path = os.path.join(root, file_name)
-                class_info, function_names, file_lines = parse_python_file(file_path)
-                curr_struct[file_name] = {
-                    "classes": class_info,
-                    "functions": function_names,
-                    "text": file_lines,
-                }
-            else:
-                curr_struct[file_name] = {}
-
-    return structure
-
 if __name__ == "__main__":
     print(create_structure(directory_path="/home/test/arno/Agentless/agent"))
