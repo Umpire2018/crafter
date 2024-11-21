@@ -1,7 +1,12 @@
 {
-  "doc_version": "5e6937017edea5005ede91da9aea3e0639fa4148",
+  "doc_version": "6b43475d421772e52fe1792c1b460b896bd72f95",
   "in_generation_process": false,
   "fake_file_reflection": {},
   "jump_files": [],
-  "deleted_items_from_older_meta": []
+  "deleted_items_from_older_meta": [
+    [
+      "get_repo_structure/get_repo_structure.py/create_structure",
+      "_function"
+    ]
+  ]
 }
