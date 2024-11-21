@@ -75,41 +75,45 @@ This function serves as a high-level orchestrator that integrates the functional
 **parse_python_file**: The function of parse_python_file is to parse a Python file to extract class and function definitions along with their line numbers.
 
 **parameters**: The parameters of this Function.
-· file_path: Path to the Python file that needs to be parsed.
-· file_content: Optional; the content of the Python file as a string. If not provided, the function will read the file content from the specified file path.
+· parameter1: file_path - The path to the Python file that needs to be parsed.
+· parameter2: file_content - Optional; the content of the Python file as a string. If not provided, the function will read the content from the file specified by file_path.
 
-**Code Description**: The parse_python_file function is designed to analyze a Python source file and extract information about its classes and functions. It takes a file path as input and optionally accepts the file content directly. If the file content is not provided, the function attempts to read the content from the specified file path. In case of any errors during file reading or parsing, the function catches exceptions and prints an error message, returning empty lists and an empty string.
+**Code Description**: The parse_python_file function is designed to analyze a Python source file and extract information about its classes and functions. It takes in a file path and optionally the content of the file. If the file content is not provided, the function attempts to read the content from the specified file path. If an error occurs during file reading or parsing, it catches the exception and prints an error message, returning empty lists and an empty string.
 
-The function utilizes the Abstract Syntax Tree (AST) module to parse the Python code. It traverses the parsed data to identify class definitions (ast.ClassDef) and function definitions (ast.FunctionDef). For each class found, it collects information about its methods, including their names, starting and ending line numbers, and the corresponding lines of code. The function also collects standalone function definitions that are not part of any class.
+The function utilizes the Abstract Syntax Tree (AST) module to parse the Python code. It traverses the parsed data to identify class definitions (ast.ClassDef) and function definitions (ast.FunctionDef). For each class found, it collects information about its methods, including their names, starting and ending line numbers, and the corresponding lines of code. It also collects information about standalone functions that are not part of any class.
 
-The output of the function consists of three components: a list of dictionaries representing class information, a list of dictionaries representing function names, and the lines of code from the file. Each dictionary contains relevant details such as the name of the class or function, their line numbers, and the text of the code.
+The function returns three values:
+1. A list of dictionaries containing information about the classes, including their methods.
+2. A list of dictionaries containing information about standalone functions.
+3. The content of the file split into lines.
 
-This function is called by the create_structure function, which is responsible for creating a structured representation of a repository directory. The create_structure function walks through the directory, identifies Python files, and invokes parse_python_file to extract class and function information from each file. The results are then organized into a hierarchical dictionary structure that represents the repository's layout, including classes, functions, and their corresponding code.
+**Note**: It is important to ensure that the file path provided is valid and accessible. If the file content is provided directly, it should be a properly formatted Python code string. The function does not handle asynchronous functions (ast.AsyncFunctionDef) and will only return information about regular functions.
 
-**Note**: It is important to ensure that the file path provided is valid and that the file is accessible. If the file content is provided directly, it should be in the correct format for parsing. 
+**Output Example**: 
+If the input Python file contains the following code:
+```python
+class MyClass:
+    def my_method(self):
+        pass
 
-**Output Example**: A possible return value of the function could look like this:
+def my_function():
+    pass
+```
+The function might return:
 ```python
 (
     [
         {
             "name": "MyClass",
             "start_line": 1,
-            "end_line": 10,
-            "text": [
-                "class MyClass:",
-                "    def my_method(self):",
-                "        pass"
-            ],
+            "end_line": 4,
+            "text": ["class MyClass:", "    def my_method(self):", "        pass"],
             "methods": [
                 {
                     "name": "my_method",
                     "start_line": 2,
                     "end_line": 3,
-                    "text": [
-                        "    def my_method(self):",
-                        "        pass"
-                    ]
+                    "text": ["    def my_method(self):", "        pass"]
                 }
             ]
         }
@@ -117,21 +121,11 @@ This function is called by the create_structure function, which is responsible f
     [
         {
             "name": "my_function",
-            "start_line": 12,
-            "end_line": 13,
-            "text": [
-                "def my_function():",
-                "    pass"
-            ]
+            "start_line": 5,
+            "end_line": 6,
+            "text": ["def my_function():", "    pass"]
         }
     ],
-    [
-        "class MyClass:",
-        "    def my_method(self):",
-        "        pass",
-        "",
-        "def my_function():",
-        "    pass"
-    ]
+    ["class MyClass:", "    def my_method(self):", "        pass", "", "def my_function():", "    pass"]
 )
 ```
